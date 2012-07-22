@@ -1,0 +1,64 @@
+# This file contains settings used
+# during the installation of Koha.
+# It is meant for use during future
+# upgrades of Koha, and should not
+# be edited.
+KOHA_INSTALLED_VERSION=3.09.00.025
+LOG_DIR=/var/log/koha
+DB_TYPE=mysql
+DB_NAME=koha
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASS=erlang44
+WEBMASTER_EMAIL=webmaster@precise32
+WEBSERVER_DOMAIN=precise32
+WEBSERVER_HOST=precise32
+WEBSERVER_IP=127.0.1.1
+WEBSERVER_PORT=80
+WEBSERVER_PORT_LIBRARIAN=8080
+ZEBRA_SRU_HOST=localhost
+ZEBRA_SRU_BIBLIOS_PORT=9998
+ZEBRA_SRU_AUTHORITIES_PORT=9999
+KOHA_USER=root
+KOHA_GROUP=root
+ZEBRA_PASS=erlang44
+ZEBRA_USER=root
+INTRANET_CGI_DIR=/usr/share/koha/intranet/cgi-bin
+INTRANET_TMPL_DIR=/usr/share/koha/intranet/htdocs/intranet-tmpl
+INTRANET_WWW_DIR=/usr/share/koha/intranet/htdocs
+OPAC_CGI_DIR=/usr/share/koha/opac/cgi-bin
+OPAC_TMPL_DIR=/usr/share/koha/opac/htdocs/opac-tmpl
+OPAC_WWW_DIR=/usr/share/koha/opac/htdocs
+PERL_MODULE_DIR=/usr/share/koha/lib
+KOHA_CONF_DIR=/etc/koha
+ZEBRA_CONF_DIR=/etc/koha/zebradb
+PAZPAR2_CONF_DIR=/etc/koha/pazpar2
+MISC_DIR=/usr/share/koha/misc
+SCRIPT_DIR=/usr/share/koha/bin
+MAN_DIR=/usr/share/koha/man
+DOC_DIR=/usr/share/koha/doc
+ZEBRA_LOCK_DIR=/var/lock/koha/zebradb
+ZEBRA_DATA_DIR=/var/lib/koha/zebradb
+ZEBRA_RUN_DIR=/var/run/koha/zebradb
+ZEBRA_MARC_FORMAT=marc21
+ZEBRA_LANGUAGE=en
+ZEBRA_AUTH_CFG=zebra-authorities-dom.cfg
+ZEBRA_BIB_CFG=zebra-biblios-dom.cfg
+AUTH_RETRIEVAL_CFG=retrieval-info-auth-dom.xml
+BIB_RETRIEVAL_CFG=retrieval-info-bib-dom.xml
+MERGE_SERVER_HOST=precise32
+MERGE_SERVER_PORT=11001
+PAZPAR2_HOST=precise32
+PAZPAR2_PORT=11002
+INSTALL_MODE=standard
+INSTALL_BASE=/usr/share/koha
+INSTALL_ZEBRA=yes
+INSTALL_SRU=yes
+INSTALL_PAZPAR2=no
+BIB_INDEX_MODE=dom
+RUN_DATABASE_TESTS=no
+PATH_TO_ZEBRA=/usr/bin
+USE_MEMCACHED=no
+MEMCACHED_SERVERS=
+MEMCACHED_NAMESPACE=
