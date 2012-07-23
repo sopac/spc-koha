@@ -1,0 +1,1 @@
+sudo /usr/share/koha/bin/migration_tools/rebuild_zebra.pl -a -b -r
