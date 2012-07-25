@@ -124,7 +124,7 @@
 .\" ========================================================================
 .\"
 .IX Title "C4::Items 3pm"
-.TH C4::Items 3pm "2012-07-03" "perl v5.14.2" "User Contributed Perl Documentation"
+.TH C4::Items 3pm "2012-07-24" "perl v5.14.2" "User Contributed Perl Documentation"
 .\" For nroff, turn off justification.  Always turn off hyphenation; it makes
 .\" way too many mistakes in technical documents.
 .if n .ad l
@@ -183,6 +183,14 @@ to its stored permanent shelving location.  This is
 primarily used to indicate when an item whose current
 location is a special processing ('\s-1PROC\s0') or shelving cart
 ('\s-1CART\s0') location is back in the stacks.
+.SS "ShelfToCart"
+.IX Subsection "ShelfToCart"
+.Vb 1
+\&  ShelfToCart($itemnumber);
+.Ve
+.PP
+Set the current shelving location of the item
+to shelving cart ('\s-1CART\s0').
 .SS "AddItemFromMarc"
 .IX Subsection "AddItemFromMarc"
 .Vb 2

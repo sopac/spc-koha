@@ -135,4 +135,4 @@ requires:
   XML::Simple: 2.14
   YAML: 0.71
   YAML::Syck: 0.71
-version: 3.09.00.025
+version: 3.09.00.026

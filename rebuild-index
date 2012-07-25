@@ -1,1 +1,4 @@
+echo Rebuilding Zoha Zebra Index...
 sudo /usr/share/koha/bin/migration_tools/rebuild_zebra.pl -a -b -r
+sudo /usr/share/koha/bin/migration_tools/rebuild_nozebra.pl 
+

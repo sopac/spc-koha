@@ -3,7 +3,7 @@
 # It is meant for use during future
 # upgrades of Koha, and should not
 # be edited.
-KOHA_INSTALLED_VERSION=3.09.00.025
+KOHA_INSTALLED_VERSION=3.09.00.026
 LOG_DIR=/var/log/koha
 DB_TYPE=mysql
 DB_NAME=koha

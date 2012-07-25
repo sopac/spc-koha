@@ -67,8 +67,15 @@
 <!--<ul> -->
 <!--	<li><a href="/cgi-bin/koha/lostpassword.pl" title="Password lost and found">Lost your password?</a></li> -->
 <!-- </ul> -->
-
+<hr/>
+Applied GeoScience and Technology Division (SOPAC)
+<br/>
+Secretariat of the Pacific Community (SPC)
+<br/>
+<hr/>
+<b><a href="http://192.168.20.33:8080/" style="text-decoration: none">Online Public Access Catalogue</a></b>
 </div>
+
 </div>
 
 [% INCLUDE 'intranet-bottom.inc' %]
