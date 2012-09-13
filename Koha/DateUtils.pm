@@ -80,6 +80,7 @@ sub dt_from_string {
             } elsif ( $date_format eq 'sql' ) {
                 $date_string =~
 s/(\d{4})(\d{2})(\d{2})\s+(\d{2})(\d{2})(\d{2})/$1-$2-$3T$4:$5:$6/;
+                return if ($date_string =~ /^0000-00-00/);
                 $date_string =~ s/00T/01T/;
             }
         }
@@ -94,7 +95,8 @@ s/(\d{4})(\d{2})(\d{2})\s+(\d{2})(\d{2})(\d{2})/$1-$2-$3T$4:$5:$6/;
 
 $date_string = output_pref($dt, [$format] );
 
-Returns a string containing the time & date formatted as per the C4::Context setting
+Returns a string containing the time & date formatted as per the C4::Context setting,
+or C<undef> if C<undef> was provided.
 
 A second parameter allows overriding of the syspref value. This is for testing only
 In usage use the DateTime objects own methods for non standard formatting
@@ -104,6 +106,9 @@ In usage use the DateTime objects own methods for non standard formatting
 sub output_pref {
     my $dt         = shift;
     my $force_pref = shift;    # if testing we want to override Context
+
+    return unless defined $dt;
+
     my $pref =
       defined $force_pref ? $force_pref : C4::Context->preference('dateformat');
     given ($pref) {
@@ -158,6 +163,7 @@ sub format_sqldatetime {
     my $force_pref = shift;    # if testing we want to override Context
     if ( defined $str && $str =~ m/^\d{4}-\d{2}-\d{2}/ ) {
         my $dt = dt_from_string( $str, 'sql' );
+        return q{} unless $dt;
         $dt->truncate( to => 'minute' );
         return output_pref( $dt, $force_pref );
     }

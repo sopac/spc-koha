@@ -634,8 +634,9 @@ fieldset.rows label, fieldset.rows span.label {
 }
 
 fieldset.rows fieldset {
+    background-color: #FFF;
 	border-width : 1px;
-	margin : 0 0 .5em 0;
+    margin : 1em;
 	padding : .3em;
 }
 
@@ -732,6 +733,10 @@ fieldset.action, div.action {
   margin: 0;
      padding: .4em .4em .4em .1em;
   width: auto;
+}
+
+div.rows+div.rows {
+    margin-top : .6em;
 }
 
 div.rows {
@@ -1184,6 +1189,16 @@ div.alert strong {
     list-style-position:inside;
 }
 
+a.clear-field {
+    background : transparent url("../../img/clear-field.png") center left no-repeat;
+    padding-left : 16px;
+}
+
+a.clone-field {
+    background : transparent url("../../img/clone-field.png") center left no-repeat;
+    padding-left : 20px;
+}
+
 a.document {
 	background-position : left middle;
 	background-repeat : no-repeat;
@@ -1258,6 +1273,10 @@ div.note {
 span.required {
 	font-style : italic;
 	margin-left : .5em;
+}
+
+.missing{
+    background-color : #FFFFCC;
 }
 
 .term {
@@ -2347,6 +2366,37 @@ ul.ui-tabs-nav li {
     font-style: italic;
 }
 
+#authfinderops {
+    float: right;
+}
+
+.contents {
+    width: 75%;
+}
+
+.contentblock {
+    position: relative;
+    margin-left: 2em;
+}
+
+.contents .t:first-child:before {
+    content: "→ ";
+}
+
+.contents .t:before {
+    content: "\A→ ";
+    white-space: pre;
+}
+
+.contents .t {
+    font-weight: bold;
+    display: inline;
+}
+
+.contents .r {
+    display: inline;
+}
+
 /* jQuery UI Datepicker */
 .ui-datepicker-trigger {
     vertical-align: middle;
@@ -2357,3 +2407,11 @@ ul.ui-tabs-nav li {
     -webkit-box-shadow: 1px 1px 3px 0 #666;
     box-shadow: 1px 1px 3px 0 #666;
 }
+
+/* css for timepicker */
+.ui-timepicker-div .ui-widget-header { margin-bottom: 8px; }
+.ui-timepicker-div dl { text-align: left; }
+.ui-timepicker-div dl dt { height: 25px; margin-bottom: -25px; }
+.ui-timepicker-div dl dd { margin: 0 10px 10px 65px; }
+.ui-timepicker-div td { font-size: 90%; }
+.ui-tpicker-grid-label { background: none; border: none; margin: 0; padding: 0; }

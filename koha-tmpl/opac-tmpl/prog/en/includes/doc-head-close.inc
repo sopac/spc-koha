@@ -3,13 +3,20 @@
 <meta name="generator" content="Koha [% Version %]" /> <!-- leave this for stats -->
 <link rel="shortcut icon" href="[% IF ( OpacFavicon ) %][% OpacFavicon %][% ELSE %][% themelang %]/includes/favicon.ico[% END %]" type="image/x-icon" />
 <link rel="stylesheet" type="text/css" href="[% themelang %]/lib/jquery/jquery-ui.css" />
-[% IF ( opacstylesheet ) %]<link rel="stylesheet" type="text/css" href="[% opacstylesheet %]" />[% ELSE %]
-[% IF ( opaclayoutstylesheet ) %]<link rel="stylesheet" type="text/css" href="[% themelang %]/css/[% opaclayoutstylesheet %]" />[% ELSE %]<link rel="stylesheet" type="text/css" href="[% themelang %]/css/opac.css" />[% END %][% END %]
-[% IF ( opaccolorstylesheet ) %]
-    <link rel="stylesheet" type="text/css" href="[% themelang %]/css/[% opaccolorstylesheet %]" />
+<link rel="stylesheet" type="text/css" href="[% yuipath %]/reset-fonts-grids.css" />
+<link rel="stylesheet" type="text/css" href="[% yuipath %]/skin.css" />
+[% SET opaclayoutstylesheet='opac.css' UNLESS opaclayoutstylesheet %]
+[% IF (opaclayoutstylesheet.match('^https?:|^\/')) %]
+    <link rel="stylesheet" type="text/css" href="[% opaclayoutstylesheet %]" />
+[% ELSE %]
+    <link rel="stylesheet" type="text/css" href="[% themelang %]/css/[% opaclayoutstylesheet %]" />
 [% END %]
-[% IF ( opacexternalsheet ) %]
-    <link rel="stylesheet" type="text/css" href="[% opacexternalsheet %]" />
+[% IF ( opaccolorstylesheet ) %]
+    [% IF (opaccolorstylesheet.match('^https?:|^\/')) %]
+        <link rel="stylesheet" type="text/css" href="[% opaccolorstylesheet %]" />
+    [% ELSE %]
+        <link rel="stylesheet" type="text/css" href="[% themelang %]/css/[% opaccolorstylesheet %]" />
+    [% END %]
 [% END %]
 [% IF ( opac_css_override ) %]
     <link rel="stylesheet" type="text/css" href="[% themelang %]/css/[% opac_css_override %]" />

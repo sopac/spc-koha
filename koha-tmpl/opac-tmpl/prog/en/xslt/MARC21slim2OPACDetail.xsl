@@ -7,7 +7,7 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   exclude-result-prefixes="marc items">
     <xsl:import href="MARC21slimUtils.xsl"/>
-    <xsl:output method = "xml" indent="yes" omit-xml-declaration = "yes" />
+    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" />
     <xsl:template match="/">
             <xsl:apply-templates/>
     </xsl:template>
@@ -21,7 +21,6 @@
     <xsl:variable name="DisplayOPACiconsXSLT" select="marc:sysprefs/marc:syspref[@name='DisplayOPACiconsXSLT']"/>
     <xsl:variable name="OPACURLOpenInNewWindow" select="marc:sysprefs/marc:syspref[@name='OPACURLOpenInNewWindow']"/>
     <xsl:variable name="URLLinkText" select="marc:sysprefs/marc:syspref[@name='URLLinkText']"/>
-    <xsl:variable name="ShowISBD" select="marc:sysprefs/marc:syspref[@name='viewISBD']"/>
     
     <xsl:variable name="SubjectModifier"><xsl:if test="marc:sysprefs/marc:syspref[@name='TraceCompleteSubfields']='1'">,complete-subfield</xsl:if></xsl:variable>
     <xsl:variable name="UseAuthoritiesForTracings" select="marc:sysprefs/marc:syspref[@name='UseAuthoritiesForTracings']"/>
@@ -570,33 +569,37 @@
 
         <!-- 505 -->
         <xsl:if test="marc:datafield[@tag=505]">
+        <div class="results_summary contents">
         <xsl:for-each select="marc:datafield[@tag=505]">
-        <span class="results_summary contents">
-        <xsl:choose>
-        <xsl:when test="@ind1=1">
-            <span class="label">Incomplete contents:</span>
-        </xsl:when>
-        <xsl:when test="@ind1=1">
-            <span class="label">Partial contents:</span>
-        </xsl:when>
-        <xsl:otherwise>
-            <span class="label">Contents:</span>
-        </xsl:otherwise>
-        </xsl:choose>
+        <xsl:if test="position()=1">
+            <xsl:choose>
+            <xsl:when test="@ind1=1">
+                <span class="label">Incomplete contents:</span>
+            </xsl:when>
+            <xsl:when test="@ind1=2">
+                <span class="label">Partial contents:</span>
+            </xsl:when>
+            <xsl:otherwise>
+                <span class="label">Contents:</span>
+            </xsl:otherwise>
+            </xsl:choose>
+        </xsl:if>
+        <div class='contentblock'>
         <xsl:choose>
         <xsl:when test="@ind2=0">
-            <xsl:call-template name="subfieldSelect">
+            <xsl:call-template name="subfieldSelectSpan">
                 <xsl:with-param name="codes">tru</xsl:with-param>
             </xsl:call-template>
         </xsl:when>
         <xsl:otherwise>
-            <xsl:call-template name="subfieldSelect">
-                <xsl:with-param name="codes">au</xsl:with-param>
+            <xsl:call-template name="subfieldSelectSpan">
+                <xsl:with-param name="codes">atru</xsl:with-param>
             </xsl:call-template>
         </xsl:otherwise>
         </xsl:choose>
-        </span>
+        </div>
         </xsl:for-each>
+        </div>
         </xsl:if>
 
         <!-- 583 -->

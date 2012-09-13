@@ -199,7 +199,7 @@ sub SearchAuthorities {
         }
     } else {
         my $query;
-        my $attr;
+        my $attr = '';
             # the marclist may contain "mainentry". In this case, search the tag_to_report, that depends on
             # the authtypecode. Then, search on $a of this tag_to_report
             # also store main entry MARC tag, to extract it at end of search
@@ -230,9 +230,6 @@ sub SearchAuthorities {
                 elsif ( @$tags[$i] eq "mainentry" ) {
                     $attr = " \@attr 1=Heading ";
                 }
-                elsif ( @$tags[$i] eq "any" ) {
-                    $attr = " \@attr 1=Any ";
-                }
                 elsif ( @$tags[$i] eq "match" ) {
                     $attr = " \@attr 1=Match ";
                 }
@@ -244,6 +241,9 @@ sub SearchAuthorities {
                 }
                 elsif ( @$tags[$i] eq "thesaurus" ) {
                     $attr = " \@attr 1=Subject-heading-thesaurus ";
+                }
+                else { # Assume any if no index was specified
+                    $attr = " \@attr 1=Any ";
                 }
                 if ( @$operator[$i] eq 'is' ) {
                     $attr .= " \@attr 4=1  \@attr 5=100 "
@@ -354,7 +354,7 @@ sub SearchAuthorities {
                 my $thisauthtype = GetAuthType(GetAuthTypeCode($authid));
                 $newline{authtype}     = defined ($thisauthtype) ?
                                             $thisauthtype->{'authtypetext'} :
-                                            GetAuthType($authtypecode)->{'authtypetext'};
+                                            (GetAuthType($authtypecode) ? $_->{'authtypetext'} : '');
                 $newline{summary}      = $summary;
                 $newline{even}         = $counter % 2;
                 $newline{reported_tag} = $reported_tag;
@@ -959,6 +959,7 @@ sub BuildSummary {
         'f' => 'musical',
         'g' => 'broader',
         'h' => 'narrower',
+        'n' => 'notapplicable',
         'i' => 'subfi',
         't' => 'parent'
     );
@@ -970,7 +971,6 @@ sub BuildSummary {
     $thesaurus{'5'}="Lieux";
     $thesaurus{'6'}="Sujets";
     #thesaurus a remplir
-    my @fields = $record->fields();
     my $reported_tag;
 # if the library has a summary defined, use it. Otherwise, build a standard one
 # FIXME - it appears that the summary field in the authority frameworks
@@ -1007,108 +1007,138 @@ sub BuildSummary {
         $resultstring =~ s/\[(.*?)\]//g;
         $resultstring =~ s/\n/<br>/g;
         $summary{summary}      =  $resultstring;
-    } else {
-        my @authorized;
-        my @notes;
-        my @seefrom;
-        my @seealso;
-        my @otherscript;
-        my @fields = $record->fields();
-        if (C4::Context->preference('marcflavour') eq 'UNIMARC') {
+    }
+    my @authorized;
+    my @notes;
+    my @seefrom;
+    my @seealso;
+    my @otherscript;
+    if (C4::Context->preference('marcflavour') eq 'UNIMARC') {
 # construct UNIMARC summary, that is quite different from MARC21 one
 # accepted form
-            foreach my $field ($record->field('2..')) {
-                push @authorized, $field->as_string('abcdefghijlmnopqrstuvwxyz');
-            }
+        foreach my $field ($record->field('2..')) {
+            push @authorized, { heading => $field->as_string('abcdefghijlmnopqrstuvwxyz'), field => $field->tag() };
+        }
 # rejected form(s)
-            foreach my $field ($record->field('3..')) {
-                push @notes, $field->subfield('a');
-            }
-            foreach my $field ($record->field('4..')) {
-                my $thesaurus = $field->subfield('2') ? "thes. : ".$thesaurus{"$field->subfield('2')"}." : " : '';
-                push @seefrom, { heading => $thesaurus . $field->as_string('abcdefghijlmnopqrstuvwxyz'), type => 'seefrom' };
-            }
+        foreach my $field ($record->field('3..')) {
+            push @notes, { note => $field->subfield('a'), field => $field->tag() };
+        }
+        foreach my $field ($record->field('4..')) {
+            my $thesaurus = $field->subfield('2') ? "thes. : ".$thesaurus{"$field->subfield('2')"}." : " : '';
+            push @seefrom, { heading => $thesaurus . $field->as_string('abcdefghijlmnopqrstuvwxyz'), type => 'seefrom', field => $field->tag() };
+        }
 # see :
-            foreach my $field ($record->field('5..')) {
-                if (($field->subfield('5')) && ($field->subfield('a')) && ($field->subfield('5') eq 'g')) {
-                    push @seealso, { $field->as_string('abcdefgjxyz'), type => 'broader' };
-                } elsif (($field->subfield('5')) && ($field->as_string) && ($field->subfield('5') eq 'h')){
-                    push @seealso, { heading => $field->as_string('abcdefgjxyz'), type => 'narrower' };
-                } elsif ($field->subfield('a')) {
-                    push @seealso, { heading => $field->as_string('abcdefgxyz'), type => 'seealso' };
-                }
+        foreach my $field ($record->field('5..')) {
+            if (($field->subfield('5')) && ($field->subfield('a')) && ($field->subfield('5') eq 'g')) {
+                push @seealso, { $field->as_string('abcdefgjxyz'), type => 'broader', field => $field->tag() };
+            } elsif (($field->subfield('5')) && ($field->as_string) && ($field->subfield('5') eq 'h')){
+                push @seealso, { heading => $field->as_string('abcdefgjxyz'), type => 'narrower', field => $field->tag() };
+            } elsif ($field->subfield('a')) {
+                push @seealso, { heading => $field->as_string('abcdefgxyz'), type => 'seealso', field => $field->tag() };
             }
+        }
 # // form
-            foreach my $field ($record->field('7..')) {
-                my $lang = substr($field->subfield('8'),3,3);
-                push @otherscript, { lang => $lang, term => $field->subfield('a') };
-            }
-        } else {
+        foreach my $field ($record->field('7..')) {
+            my $lang = substr($field->subfield('8'),3,3);
+            push @otherscript, { lang => $lang, term => $field->subfield('a'), direction => 'ltr', field => $field->tag() };
+        }
+    } else {
 # construct MARC21 summary
 # FIXME - looping over 1XX is questionable
 # since MARC21 authority should have only one 1XX
-            foreach my $field ($record->field('1..')) {
-                my $tag = $field->tag();
-                next if "152" eq $tag;
+        my $subfields_to_report;
+        foreach my $field ($record->field('1..')) {
+            my $tag = $field->tag();
+            next if "152" eq $tag;
 # FIXME - 152 is not a good tag to use
 # in MARC21 -- purely local tags really ought to be
 # 9XX
-                if ($tag eq '100') {
-                    push @authorized, $field->as_string('abcdefghjklmnopqrstvxyz68');
-                } elsif ($tag eq '110') {
-                    push @authorized, $field->as_string('abcdefghklmnoprstvxyz68');
-                } elsif ($tag eq '111') {
-                    push @authorized, $field->as_string('acdefghklnpqstvxyz68');
-                } elsif ($tag eq '130') {
-                    push @authorized, $field->as_string('adfghklmnoprstvxyz68');
-                } elsif ($tag eq '148') {
-                    push @authorized, $field->as_string('abvxyz68');
-                } elsif ($tag eq '150') {
-                    push @authorized, $field->as_string('abvxyz68');
-                } elsif ($tag eq '151') {
-                    push @authorized, $field->as_string('avxyz68');
-                } elsif ($tag eq '155') {
-                    push @authorized, $field->as_string('abvxyz68');
-                } elsif ($tag eq '180') {
-                    push @authorized, $field->as_string('vxyz68');
-                } elsif ($tag eq '181') {
-                    push @authorized, $field->as_string('vxyz68');
-                } elsif ($tag eq '182') {
-                    push @authorized, $field->as_string('vxyz68');
-                } elsif ($tag eq '185') {
-                    push @authorized, $field->as_string('vxyz68');
-                } else {
-                    push @authorized, $field->as_string();
-                }
-            } #See From
-            foreach my $field ($record->field('4..')) {
-                my $type = 'seefrom';
-                $type = $marc21controlrefs{substr $field->subfield('w'), '0'} if ($field->subfield('w'));
-                if ($type eq 'subfi') {
-                    push @seefrom, { heading => $field->as_string($marc21subfields), type => $field->subfield('i') };
-                } else {
-                    push @seefrom, { heading => $field->as_string($marc21subfields), type => $type };
-                }
-            } #See Also
-            foreach my $field ($record->field('5..')) {
-                my $type = 'seealso';
-                $type = $marc21controlrefs{substr $field->subfield('w'), '0'} if ($field->subfield('w'));
-                if ($type eq 'subfi') {
-                    push @seealso, { heading => $field->as_string($marc21subfields), type => $field->subfield('i') };
-                } else {
-                    push @seealso, { heading => $field->as_string($marc21subfields), type => $type };
-                }
+            if ($tag eq '100') {
+                $subfields_to_report = 'abcdefghjklmnopqrstvxyz';
+            } elsif ($tag eq '110') {
+                $subfields_to_report = 'abcdefghklmnoprstvxyz';
+            } elsif ($tag eq '111') {
+                $subfields_to_report = 'acdefghklnpqstvxyz';
+            } elsif ($tag eq '130') {
+                $subfields_to_report = 'adfghklmnoprstvxyz';
+            } elsif ($tag eq '148') {
+                $subfields_to_report = 'abvxyz';
+            } elsif ($tag eq '150') {
+                $subfields_to_report = 'abvxyz';
+            } elsif ($tag eq '151') {
+                $subfields_to_report = 'avxyz';
+            } elsif ($tag eq '155') {
+                $subfields_to_report = 'abvxyz';
+            } elsif ($tag eq '180') {
+                $subfields_to_report = 'vxyz';
+            } elsif ($tag eq '181') {
+                $subfields_to_report = 'vxyz';
+            } elsif ($tag eq '182') {
+                $subfields_to_report = 'vxyz';
+            } elsif ($tag eq '185') {
+                $subfields_to_report = 'vxyz';
             }
-            foreach my $field ($record->field('6..')) {
-                push @notes, $field->as_string();
+            if ($subfields_to_report) {
+                push @authorized, { heading => $field->as_string($subfields_to_report), field => $tag };
+            } else {
+                push @authorized, { heading => $field->as_string(), field => $tag };
             }
         }
-        $summary{authorized} = \@authorized;
-        $summary{notes} = \@notes;
-        $summary{seefrom} = \@seefrom;
-        $summary{seealso} = \@seealso;
-        $summary{otherscript} = \@otherscript;
+        foreach my $field ($record->field('4..')) { #See From
+            my $type = 'seefrom';
+            $type = $marc21controlrefs{substr $field->subfield('w'), 0, 1} if ($field->subfield('w'));
+            if ($type eq 'notapplicable') {
+                $type = substr $field->subfield('w'), 2, 1;
+                $type = 'earlier' if $type && $type ne 'n';
+            }
+            if ($type eq 'subfi') {
+                push @seefrom, { heading => $field->as_string($marc21subfields), type => $field->subfield('i'), field => $field->tag() };
+            } else {
+                push @seefrom, { heading => $field->as_string($marc21subfields), type => $type, field => $field->tag() };
+            }
+        }
+        foreach my $field ($record->field('5..')) { #See Also
+            my $type = 'seealso';
+            $type = $marc21controlrefs{substr $field->subfield('w'), 0, 1} if ($field->subfield('w'));
+            if ($type eq 'notapplicable') {
+                $type = substr $field->subfield('w'), 2, 1;
+                $type = 'earlier' if $type && $type ne 'n';
+            }
+            if ($type eq 'subfi') {
+                push @seealso, { heading => $field->as_string($marc21subfields), type => $field->subfield('i'), field => $field->tag() };
+            } else {
+                push @seealso, { heading => $field->as_string($marc21subfields), type => $type, field => $field->tag() };
+            }
+        }
+        foreach my $field ($record->field('6..')) {
+            push @notes, { note => $field->as_string(), field => $field->tag() };
+        }
+        foreach my $field ($record->field('880')) {
+            my $linkage = $field->subfield('6');
+            my $category = substr $linkage, 0, 1;
+            if ($category eq '1') {
+                $category = 'preferred';
+            } elsif ($category eq '4') {
+                $category = 'seefrom';
+            } elsif ($category eq '5') {
+                $category = 'seealso';
+            }
+            my $type;
+            if ($field->subfield('w')) {
+                $type = $marc21controlrefs{substr $field->subfield('w'), '0'};
+            } else {
+                $type = $category;
+            }
+            my $direction = $linkage =~ m#/r$# ? 'rtl' : 'ltr';
+            push @otherscript, { term => $field->as_string($subfields_to_report), category => $category, type => $type, direction => $direction, linkage => $linkage };
+        }
     }
+    $summary{mainentry} = $authorized[0]->{heading};
+    $summary{authorized} = \@authorized;
+    $summary{notes} = \@notes;
+    $summary{seefrom} = \@seefrom;
+    $summary{seealso} = \@seealso;
+    $summary{otherscript} = \@otherscript;
     return \%summary;
 }
 
@@ -1326,7 +1356,7 @@ sub merge {
             my $marcdata = $rec->raw();
             my $marcrecordzebra= MARC::Record->new_from_xml($marcdata,"utf8",C4::Context->preference("marcflavour"));
             my ( $biblionumbertagfield, $biblionumbertagsubfield ) = &GetMarcFromKohaField( "biblio.biblionumber", '' );
-            my $i = $marcrecordzebra->subfield($biblionumbertagfield, $biblionumbertagsubfield);
+            my $i = ($biblionumbertagfield < 10) ? $marcrecordzebra->field($biblionumbertagfield)->data : $marcrecordzebra->subfield($biblionumbertagfield, $biblionumbertagsubfield);
             my $marcrecorddb=GetMarcBiblio($i);
             push @reccache, $marcrecorddb;
             $z++;

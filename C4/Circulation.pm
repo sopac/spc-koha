@@ -38,11 +38,21 @@ use C4::Branch; # GetBranches
 use C4::Log; # logaction
 use C4::Koha qw(GetAuthorisedValueByCode);
 use C4::Overdues qw(CalcFine UpdateFine);
+use Algorithm::CheckDigits;
+
 use Data::Dumper;
 use Koha::DateUtils;
 use Koha::Calendar;
 use Carp;
-
+use Date::Calc qw(
+  Today
+  Today_and_Now
+  Add_Delta_YM
+  Add_Delta_DHMS
+  Date_to_Days
+  Day_of_Week
+  Add_Delta_Days
+);
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 
 BEGIN {
@@ -169,6 +179,14 @@ sub barcodedecode {
 				$barcode =~ s/^(\D+)[0]*(\d+)$/$branch-$1-$2/i;
 			}
 		}
+    } elsif ($filter eq 'EAN13') {
+        my $ean = CheckDigits('ean');
+        if ( $ean->is_valid($barcode) ) {
+            #$barcode = sprintf('%013d',$barcode); # this doesn't work on 32-bit systems
+            $barcode = '0' x ( 13 - length($barcode) ) . $barcode;
+        } else {
+            warn "# [$barcode] not valid EAN-13/UPC-A\n";
+        }
 	}
     return $barcode;    # return barcode, modified or not
 }
@@ -931,6 +949,62 @@ sub CanBookBeIssued {
             }
         }
     }
+    #
+    # CHECK AGE RESTRICTION
+    #
+
+    # get $marker from preferences. Could be something like "FSK|PEGI|Alter|Age:"
+    my $markers = C4::Context->preference('AgeRestrictionMarker' );
+    my $bibvalues = $biblioitem->{'agerestriction'};
+    if (($markers)&&($bibvalues))
+    {
+        # Split $bibvalues to something like FSK 16 or PEGI 6
+        my @values = split ' ', $bibvalues;
+
+        # Search first occurence of one of the markers
+        my @markers = split /\|/, $markers;
+        my $index = 0;
+        my $take = -1;
+        for my $value (@values) {
+            $index ++;
+            for my $marker (@markers) {
+                $marker =~ s/^\s+//; #remove leading spaces
+                $marker =~ s/\s+$//; #remove trailing spaces
+                if (uc($marker) eq uc($value)) {
+                    $take = $index;
+                    last;
+                }
+            }
+            if ($take > -1) {
+                last;
+            }
+        }
+        # Index points to the next value
+        my $restrictionyear = 0;
+        if (($take <= $#values) && ($take >= 0)){
+            $restrictionyear += @values[$take];
+        }
+
+        if ($restrictionyear > 0) {
+            if ( $borrower->{'dateofbirth'}  ) {
+                my @alloweddate =  split /-/,$borrower->{'dateofbirth'} ;
+                @alloweddate[0] += $restrictionyear;
+                #Prevent runime eror on leap year (invalid date)
+                if ((@alloweddate[1] == 2) && (@alloweddate[2] == 29)) {
+                    @alloweddate[2] = 28;
+                }
+
+                if ( Date_to_Days(Today) <  Date_to_Days(@alloweddate) -1  ) {
+                    if (C4::Context->preference('AgeRestrictionOverride' )) {
+                        $needsconfirmation{AGE_RESTRICTION} = "$bibvalues";
+                    }
+                    else {
+                        $issuingimpossible{AGE_RESTRICTION} = "$bibvalues";
+                    }
+                }
+            }
+        }
+    }
     return ( \%issuingimpossible, \%needsconfirmation, \%alerts );
 }
 
@@ -1202,53 +1276,16 @@ Get the Hard Due Date and it's comparison for an itemtype, a borrower type and a
 
 sub GetHardDueDate {
     my ( $borrowertype, $itemtype, $branchcode ) = @_;
-    my $dbh = C4::Context->dbh;
-    my $sth =
-      $dbh->prepare(
-"select hardduedate, hardduedatecompare from issuingrules where categorycode=? and itemtype=? and branchcode=?"
-      );
-    $sth->execute( $borrowertype, $itemtype, $branchcode );
-    my $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
 
-    $sth->execute( $borrowertype, "*", $branchcode );
-    $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
+    my $rule = GetIssuingRule( $borrowertype, $itemtype, $branchcode );
 
-    $sth->execute( "*", $itemtype, $branchcode );
-    $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
-
-    $sth->execute( "*", "*", $branchcode );
-    $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
-
-    $sth->execute( $borrowertype, $itemtype, "*" );
-    $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
-
-    $sth->execute( $borrowertype, "*", "*" );
-    $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
-
-    $sth->execute( "*", $itemtype, "*" );
-    $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
-
-    $sth->execute( "*", "*", "*" );
-    $results = $sth->fetchrow_hashref;
-    return (dt_from_string($results->{hardduedate}, 'iso'),$results->{hardduedatecompare})
-      if defined($results) && $results->{hardduedate};
-
-    # if no rule is set => return undefined
-    return (undef, undef);
+    if ( defined( $rule ) ) {
+        if ( $rule->{hardduedate} ) {
+            return (dt_from_string($rule->{hardduedate}, 'iso'),$rule->{hardduedatecompare});
+        } else {
+            return (undef, undef);
+        }
+    }
 }
 
 =head2 GetIssuingRule
@@ -1440,7 +1477,8 @@ sub GetBranchItemRule {
 
     foreach my $attempt (@attempts) {
         my ($query, @bind_params) = @{$attempt};
-        my $search_result = $dbh->selectrow_hashref ( $query , {}, @bind_params );
+        my $search_result = $dbh->selectrow_hashref ( $query , {}, @bind_params )
+          or next;
 
         # Since branch/category and branch/itemtype use the same per-branch
         # defaults tables, we have to check that the key we want is set, not
@@ -1606,8 +1644,8 @@ sub AddReturn {
     }
 
     # case of a return of document (deal with issues and holdingbranch)
-    if ($doreturn) {
     my $today = DateTime->now( time_zone => C4::Context->tz() );
+    if ($doreturn) {
     my $datedue = $issue->{date_due};
         $borrower or warn "AddReturn without current borrower";
 		my $circControlBranch;
@@ -1617,13 +1655,12 @@ sub AddReturn {
             # FIXME: check issuedate > returndate, factoring in holidays
             #$circControlBranch = _GetCircControlBranch($item,$borrower) unless ( $item->{'issuedate'} eq C4::Dates->today('iso') );;
             $circControlBranch = _GetCircControlBranch($item,$borrower);
-        my $datedue = $issue->{date_due};
         $issue->{'overdue'} = DateTime->compare($issue->{'date_due'}, $today ) == -1 ? 1 : 0;
         }
 
         if ($borrowernumber) {
         if($issue->{'overdue'}){
-                my ( $amount, $type, $daycounttotal ) = C4::Overdues::CalcFine( $item, $borrower->{categorycode},$branch, $datedue, $today );
+                my ( $amount, $type, $unitcounttotal ) = C4::Overdues::CalcFine( $item, $borrower->{categorycode},$branch, $datedue, $today );
                 $type ||= q{};
         if ( $amount > 0 && ( C4::Context->preference('finesMode') eq 'production' )) {
           C4::Overdues::UpdateFine(
@@ -1681,9 +1718,12 @@ sub AddReturn {
         my $fix = _FixOverduesOnReturn($borrowernumber, $item->{itemnumber}, $exemptfine, $dropbox);
         defined($fix) or warn "_FixOverduesOnReturn($borrowernumber, $item->{itemnumber}...) failed!";  # zero is OK, check defined
         
-        # fix fine days
-        my $debardate = _FixFineDaysOnReturn( $borrower, $item, $issue->{date_due} );
-        $messages->{'Debarred'} = $debardate if ($debardate);
+        if ( $issue->{overdue} && $issue->{date_due} ) {
+# fix fine days
+            my $debardate =
+              _debar_user_on_return( $borrower, $item, $issue->{date_due}, $today );
+            $messages->{Debarred} = $debardate if ($debardate);
+        }
     }
 
     # find reserves.....
@@ -1808,26 +1848,27 @@ sub MarkIssueReturned {
     $sth_del->execute($borrowernumber, $itemnumber);
 }
 
-=head2 _FixFineDaysOnReturn
+=head2 _debar_user_on_return
 
-    &_FixFineDaysOnReturn($borrower, $item, $datedue);
+    _debar_user_on_return($borrower, $item, $datedue, today);
 
 C<$borrower> borrower hashref
 
 C<$item> item hashref
 
-C<$datedue> date due
+C<$datedue> date due DateTime object
 
-Internal function, called only by AddReturn that calculate and update the user fine days, and debars him
+C<$today> DateTime object representing the return time
+
+Internal function, called only by AddReturn that calculates and updates
+ the user fine days, and debars him if necessary.
+
+Should only be called for overdue returns
 
 =cut
 
-sub _FixFineDaysOnReturn {
-    my ( $borrower, $item, $datedue ) = @_;
-    return unless ($datedue);
-    
-    my $dt_due =  dt_from_string( $datedue );
-    my $dt_today = DateTime->now( time_zone => C4::Context->tz() );
+sub _debar_user_on_return {
+    my ( $borrower, $item, $dt_due, $dt_today ) = @_;
 
     my $branchcode = _GetCircControlBranch( $item, $borrower );
     my $calendar = Koha::Calendar->new( branchcode => $branchcode );
@@ -1836,35 +1877,41 @@ sub _FixFineDaysOnReturn {
     my $deltadays = $calendar->days_between( $dt_due, $dt_today );
 
     my $circcontrol = C4::Context::preference('CircControl');
-    my $issuingrule = GetIssuingRule( $borrower->{categorycode}, $item->{itype}, $branchcode );
-    my $finedays    = $issuingrule->{finedays};
-    my $unit        = $issuingrule->{lengthunit};
+    my $issuingrule =
+      GetIssuingRule( $borrower->{categorycode}, $item->{itype}, $branchcode );
+    my $finedays = $issuingrule->{finedays};
+    my $unit     = $issuingrule->{lengthunit};
 
-    # exit if no finedays defined
-    return unless $finedays;
-    # finedays is in days, so hourly loans must multiply by 24
-    # thus 1 hour late equals 1 day suspension * finedays rate
-    $finedays       = $finedays * 24 if ($unit eq 'hours');
+    if ($finedays) {
 
-    # grace period is measured in the same units as the loan
-    my $grace = DateTime::Duration->new( $unit => $issuingrule->{firstremind} );
+        # finedays is in days, so hourly loans must multiply by 24
+        # thus 1 hour late equals 1 day suspension * finedays rate
+        $finedays = $finedays * 24 if ( $unit eq 'hours' );
 
-    if ( ( $deltadays - $grace )->is_positive ) { # you can't compare DateTime::Durations with logical operators
-        my $new_debar_dt = $dt_today->clone()->add_duration( $deltadays * $finedays );
-        my $borrower_debar_dt = dt_from_string( $borrower->{debarred} );
-        # check to see if the current debar date is a valid date
-        if ( $borrower->{debarred} && $borrower_debar_dt ) {
-        # if so, is it before the new date?  update only if true
-            if ( DateTime->compare( $borrower_debar_dt, $new_debar_dt ) == -1 ) {
-                C4::Members::DebarMember( $borrower->{borrowernumber}, $new_debar_dt->ymd() );
-                return $new_debar_dt->ymd();
+        # grace period is measured in the same units as the loan
+        my $grace =
+          DateTime::Duration->new( $unit => $issuingrule->{firstremind} );
+        if ( $deltadays->subtract($grace)->is_positive() ) {
+
+            my $new_debar_dt =
+              $dt_today->clone()->add_duration( $deltadays * $finedays );
+            if ( $borrower->{debarred} ) {
+                my $borrower_debar_dt = dt_from_string( $borrower->{debarred} );
+
+                # Update patron only if new date > old
+                if ( DateTime->compare( $borrower_debar_dt, $new_debar_dt ) !=
+                    -1 )
+                {
+                    return;
+                }
+
             }
-        # if the borrower's debar date is not set or valid, debar them
-        } else {
-            C4::Members::DebarMember( $borrower->{borrowernumber}, $new_debar_dt->ymd() );
+            C4::Members::DebarMember( $borrower->{borrowernumber},
+                $new_debar_dt->ymd() );
             return $new_debar_dt->ymd();
         }
     }
+    return;
 }
 
 =head2 _FixOverduesOnReturn
@@ -3091,10 +3138,12 @@ sub ReturnLostItem{
 
     MarkIssueReturned( $borrowernumber, $itemnum );
     my $borrower = C4::Members::GetMember( 'borrowernumber'=>$borrowernumber );
+    my $item = C4::Items::GetItem( $itemnum );
+    my $old_note = ($item->{'paidfor'} && ($item->{'paidfor'} ne q{})) ? $item->{'paidfor'}.' / ' : q{};
     my @datearr = localtime(time);
     my $date = ( 1900 + $datearr[5] ) . "-" . ( $datearr[4] + 1 ) . "-" . $datearr[3];
     my $bor = "$borrower->{'firstname'} $borrower->{'surname'} $borrower->{'cardnumber'}";
-    ModItem({ paidfor =>  "Paid for by $bor $date" }, undef, $itemnum);
+    ModItem({ paidfor =>  $old_note."Paid for by $bor $date" }, undef, $itemnum);
 }
 
 

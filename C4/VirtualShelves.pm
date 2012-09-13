@@ -221,7 +221,7 @@ Returns the above-mentioned fields for passed virtual shelf number.
 
 =cut
 
-sub GetShelf ($) {
+sub GetShelf {
     my ($shelfnumber) = @_;
     my $query = qq(
         SELECT shelfnumber, shelfname, owner, category, sortfield,
@@ -252,7 +252,7 @@ from C4::Circulation.
 
 =cut
 
-sub GetShelfContents ($;$$$) {
+sub GetShelfContents {
     my ($shelfnumber, $row_count, $offset, $sortfield) = @_;
     my $dbh=C4::Context->dbh();
     my $sth1 = $dbh->prepare("SELECT count(*) FROM virtualshelfcontents WHERE shelfnumber = ?");
@@ -351,7 +351,7 @@ sub AddToShelf {
     my $sth = $dbh->prepare($query);
 
     $sth->execute( $shelfnumber, $biblionumber );
-    ($sth->rows) and return undef; # already on shelf
+    ($sth->rows) and return; # already on shelf
     $query = qq(
         INSERT INTO virtualshelfcontents
             (shelfnumber, biblionumber, flags, borrowernumber)
@@ -464,7 +464,7 @@ sub ShelfPossibleAction {
     $sth->execute($user, $shelfnumber);
     my $shelf= $sth->fetchrow_hashref;
 
-    return 0 unless $shelf && ($shelf->{category}==2 || $shelf->{owner}==$user || $shelf->{borrowernumber}==$user);
+    return 0 unless $shelf && ($shelf->{category}==2 || $shelf->{owner}==$user || ($user && $shelf->{borrowernumber}==$user));
     if($action eq 'view') {
         #already handled in the above condition
         return 1;
@@ -656,15 +656,6 @@ sub _biblionumber_sth { #only used in obsolete sub below
     $sth->execute( $shelf )
         or die $sth->errstr;
     $sth;
-}
-
-sub each_biblionumbers (&$) { #OBSOLETE
-    my ($code,$shelf) = @_;
-    my $ref =  _biblionumber_sth($shelf)->fetchall_arrayref;
-    map {
-        $_=$$_[0];
-        $code->();
-        } @$ref;
 }
 
 sub _CheckShelfName {

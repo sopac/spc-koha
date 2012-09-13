@@ -5536,9 +5536,6 @@ if ( C4::Context->preference("Version") < TransformToNum($DBversion) ) {
     SetVersion($DBversion);
 }
 
-
-
-
 $DBversion = "3.09.00.026";
 if ( C4::Context->preference("Version") < TransformToNum($DBversion) ) {
     $dbh->do("INSERT INTO permissions (module_bit, code, description) VALUES
@@ -5554,6 +5551,168 @@ if ( C4::Context->preference("Version") < TransformToNum($DBversion) ) {
         FROM borrowers WHERE flags & (1 << 3)");
     print "Upgrade to $DBversion done (Added parameters subpermissions)\n";
     SetVersion($DBversion);
+}
+
+$DBversion = '3.09.00.027';
+if (C4::Context->preference("Version") < TransformToNum($DBversion)) {
+    $dbh->do("ALTER TABLE issuingrules ADD overduefinescap decimal DEFAULT NULL");
+    my $maxfine = C4::Context->preference('MaxFine');
+    if ($maxfine && $maxfine < 900) { # an arbitrary value that tells us it's not "some huge value"
+      $dbh->do("UPDATE issuingrules SET overduefinescap=?",undef,$maxfine);
+      $dbh->do("UPDATE systempreferences SET value = NULL WHERE variable = 'MaxFine'");
+    }
+    $dbh->do("UPDATE systempreferences SET explanation = 'Maximum fine a patron can have for all late returns at one moment. Single item caps are specified in the circulation rules matrix.' WHERE variable = 'MaxFine'");
+    print "Upgrade to $DBversion done (Bug 7420 add overduefinescap to circulation matrix)\n";
+    SetVersion ($DBversion);
+}
+
+$DBversion = "3.09.00.028";
+if (C4::Context->preference("Version") < TransformToNum($DBversion)) {
+    unless ( C4::Context->preference('marcflavour') eq 'UNIMARC' ) {
+        my %referencetypes = (  '00' => 'PERSO_NAME',
+                                '10' => 'CORPO_NAME',
+                                '11' => 'MEETI_NAME',
+                                '30' => 'UNIF_TITLE',
+                                '48' => 'CHRON_TERM',
+                                '50' => 'TOPIC_TERM',
+                                '51' => 'GEOGR_NAME',
+                                '55' => 'GENRE/FORM'
+                );
+        my $query = q{SELECT DISTINCT authtypecode, tagfield
+                    FROM auth_subfield_structure
+                    WHERE (tagfield BETWEEN '400' AND '455' OR
+                    tagfield BETWEEN '500' and '555') AND tagsubfield='a' AND
+                    frameworkcode = '' AND ROW(authtypecode, tagfield) NOT IN
+                    (SELECT authtypecode, tagfield FROM auth_subfield_structure
+                    WHERE tagsubfield ='9' )};
+        $sth = $dbh->prepare($query);
+        $sth->execute;
+        my $sth2 = $dbh->prepare(q{INSERT INTO auth_subfield_structure
+                (authtypecode, tagfield, tagsubfield, liblibrarian, libopac,
+                 repeatable, mandatory, tab, authorised_value, value_builder,
+                 seealso, isurl, hidden, linkid, kohafield, frameworkcode)
+                VALUES (?, ?, '9', '9 (RLIN)', '9 (RLIN)', 0, 0, ?, NULL, NULL,
+                    NULL, 0, 1, '', '', '')});
+        my $sth3 = $dbh->prepare(q{UPDATE auth_subfield_structure SET
+                                    frameworkcode = ? WHERE authtypecode = ? AND
+                                    tagfield = ? AND tagsubfield = 'a'});
+        while (my $row = $sth->fetchrow_arrayref()) {
+            my ($authtypecode, $field) = @$row;
+            $sth2->execute($authtypecode, $field, substr($field, 0, 1));
+            my $authtypemarker = substr $field, 1, 2;
+            if ($authtypemarker && $referencetypes{$authtypemarker}) {
+                $sth3->execute($referencetypes{$authtypemarker}, $authtypecode, $field);
+            }
+        }
+    }
+
+    print "Upgrade to $DBversion done (Add thesaurus links for MARC21/NORMARC)\n";
+    SetVersion($DBversion);
+}
+
+$DBversion = "3.09.00.029"; # FIXME
+if ( C4::Context->preference("Version") < TransformToNum($DBversion) ) {
+    $dbh->do("UPDATE systempreferences SET options=concat(options,'|EAN13') WHERE variable='itemBarcodeInputFilter' AND options NOT LIKE '%EAN13%'");
+    print "Upgrade to $DBversion done (Add itemBarcodeInputFilter choice EAN13)\n";
+
+    $dbh->do("UPDATE systempreferences SET options = concat(options,'|EAN13'), explanation = concat(explanation,'; EAN13 - incremental') WHERE variable = 'autoBarcode' AND options NOT LIKE '%EAN13%'");
+    print "Upgrade to $DBversion done ( Added EAN13 barcode autogeneration sequence )\n";
+
+    SetVersion($DBversion);
+}
+
+$DBversion ="3.09.00.030";
+if(C4::Context->preference("Version") < TransformToNum($DBversion) ) {
+    my $query = "SELECT value FROM systempreferences WHERE variable='opacstylesheet'";
+    my $remote= $dbh->selectrow_arrayref($query);
+    $dbh->do("DELETE from systempreferences WHERE variable='opacstylesheet'");
+    if($remote && $remote->[0]) {
+        $query="UPDATE systempreferences SET value=? WHERE variable='opaclayoutstylesheet'";
+        $dbh->do($query,undef,$remote->[0]);
+        print "NOTE: The URL of your remote opac css file has been moved to preference opaclayoutstylesheet.\n";
+    }
+    print "Upgrade to $DBversion done (BZ 8263: Make OPAC stylesheet preferences more consistent)\n";
+    SetVersion($DBversion);
+}
+
+$DBversion = "3.09.00.031";
+if (C4::Context->preference("Version") < TransformToNum($DBversion)) {
+    $dbh->do("DELETE FROM systempreferences WHERE variable='AmazonReviews'");
+    $dbh->do("DELETE FROM systempreferences WHERE variable='AmazonSimilarItems'");
+    $dbh->do("DELETE FROM systempreferences WHERE variable='AWSAccessKeyID'");
+    $dbh->do("DELETE FROM systempreferences WHERE variable='AWSPrivateKey'");
+    $dbh->do("DELETE FROM systempreferences WHERE variable='OPACAmazonReviews'");
+    $dbh->do("DELETE FROM systempreferences WHERE variable='OPACAmazonSimilarItems'");
+    $dbh->do("DELETE FROM systempreferences WHERE variable='AmazonEnabled'");
+    $dbh->do("DELETE FROM systempreferences WHERE variable='OPACAmazonEnabled'");
+    print "Upgrade to $DBversion done ('Remove preferences controlling broken Amazon features (Bug 8679')\n";
+    SetVersion ($DBversion);
+}
+
+$DBversion = "3.09.00.032";
+if (C4::Context->preference("Version") < TransformToNum($DBversion)) {
+    $dbh->do("UPDATE systempreferences SET value = 'call_number' WHERE variable = 'defaultSortField' AND value = 'callnumber'");
+    $dbh->do("UPDATE systempreferences SET value = 'call_number' WHERE variable = 'OPACdefaultSortField' AND value = 'callnumber'");
+    print "Upgrade to $DBversion done (Bug 8657 - Default sort by call number does not work. Correcting system preference value.)\n";
+    SetVersion ($DBversion);
+}
+
+$DBversion = '3.09.00.033';
+if ( C4::Context->preference("Version") < TransformToNum($DBversion) ) {
+   $dbh->do("INSERT INTO systempreferences (variable,value,explanation,options,type) VALUES('OpacSuppressionByIPRange','','Restrict the suppression to IP adresses outside of the IP range','','free');");
+   print "Upgrade to $DBversion done (Add OpacSuppressionByIPRange syspref)\n";
+   SetVersion ($DBversion);
+}
+
+$DBversion ="3.09.00.034";
+if(C4::Context->preference("Version") < TransformToNum($DBversion) ) {
+    $dbh->do("UPDATE auth_subfield_structure SET frameworkcode = 'PERSO_NAME' WHERE frameworkcode = 'PERSO_CODE'");
+    $dbh->do("UPDATE auth_subfield_structure SET frameworkcode = 'CORPO_NAME' WHERE frameworkcode = 'ORGO_CODE'");
+    print "Upgrade to $DBversion done (Bug 8207: correct typo in authority types)\n";
+    SetVersion ($DBversion);
+}
+
+$DBversion = "3.09.00.035";
+if ( C4::Context->preference("Version") < TransformToNum($DBversion) ) {
+    $dbh->do("
+    INSERT IGNORE INTO systempreferences (variable,value,explanation,options,type) VALUES('PrefillItem','0','When a new item is added, should it be prefilled with last created item values?','','YesNo');
+    ");
+    $dbh->do(
+    "INSERT INTO systempreferences (variable,value,explanation,options,type) VALUES ('SubfieldsToUseWhenPrefill','','Define a list of subfields to use when prefilling items (separated by space)','','Free');
+    ");
+    print "Upgrade to $DBversion done (Adding PrefillItem and SubfieldsToUseWhenPrefill sysprefs)\n";
+}
+
+$DBversion = "3.09.00.036";
+if (C4::Context->preference("Version") < TransformToNum($DBversion)) {
+    # biblioitems changes
+    $dbh->do("ALTER TABLE biblioitems ADD COLUMN agerestriction VARCHAR(255) DEFAULT NULL AFTER cn_sort");
+    $dbh->do("ALTER TABLE deletedbiblioitems ADD COLUMN agerestriction VARCHAR(255) DEFAULT NULL AFTER cn_sort");
+    # preferences changes
+    $dbh->do("INSERT INTO systempreferences (variable,value,explanation,options,type) VALUES('AgeRestrictionMarker','','Markers for age restriction indication, e.g. FSK|PEGI|Age|. See: http://wiki.koha-community.org/wiki/Age_restriction',NULL,'free')");
+    $dbh->do("INSERT INTO systempreferences (variable,value,explanation,options,type) VALUES('AgeRestrictionOverride',0,'Allow staff to check out an item with age restriction.',NULL,'YesNo')");
+
+    print "Upgrade to $DBversion done (Add colum agerestriction to biblioitems and deletedbiblioitems, add system preferences AgeRestrictionMarker and AgeRestrictionOverride)\n";
+    SetVersion($DBversion);
+}
+
+$DBversion = "3.09.00.037";
+if (C4::Context->preference("Version") < TransformToNum($DBversion)) {
+    $dbh->do("INSERT INTO `systempreferences` (variable,value,explanation,options,type) VALUES('UseTransportCostMatrix',0,'Use Transport Cost Matrix when filling holds','','YesNo')");
+
+ $dbh->do("CREATE TABLE `transport_cost` (
+              `frombranch` varchar(10) NOT NULL,
+              `tobranch` varchar(10) NOT NULL,
+              `cost` decimal(6,2) NOT NULL,
+              `disable_transfer` tinyint(1) NOT NULL DEFAULT 0,
+              CHECK ( `frombranch` <> `tobranch` ), -- a dud check, mysql does not support that
+              PRIMARY KEY (`frombranch`, `tobranch`),
+              CONSTRAINT `transport_cost_ibfk_1` FOREIGN KEY (`frombranch`) REFERENCES `branches` (`branchcode`) ON DELETE CASCADE ON UPDATE CASCADE,
+              CONSTRAINT `transport_cost_ibfk_2` FOREIGN KEY (`tobranch`) REFERENCES `branches` (`branchcode`) ON DELETE CASCADE ON UPDATE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8");
+
+    print "Upgrade to $DBversion done (creating `transport_cost` table; adding UseTransportCostMatrix systempref, in circulation)\n";
+    SetVersion ($DBversion);
 }
 
 =head1 FUNCTIONS
@@ -5578,8 +5737,6 @@ sub TableExists {
 Drop all foreign keys of the table $table
 
 =cut
-
-
 sub DropAllForeignKeys {
     my ($table) = @_;
     # get the table description
@@ -5640,4 +5797,3 @@ sub SetVersion {
     C4::Context::clear_syspref_cache(); # invalidate cached preferences
 }
 exit;
-

@@ -449,7 +449,17 @@ my @limit_inputs = $limit_cgi ? _input_cgi_parse($limit_cgi) : ();
 #
 # add OPAC suppression - requires at least one item indexed with Suppress
 if (C4::Context->preference('OpacSuppression')) {
-    $query = "($query) not Suppress=1";
+    # OPAC suppression by IP address
+    if (C4::Context->preference('OpacSuppressionByIPRange')) {
+        my $IPAddress = $ENV{'REMOTE_ADDR'};
+        my $IPRange = C4::Context->preference('OpacSuppressionByIPRange');
+        if ($IPAddress !~ /^$IPRange/)  {
+            $query = "($query) not Suppress=1";
+        }
+    }
+    else {
+        $query = "($query) not Suppress=1";
+    }
 }
 
 $template->param ( LIMIT_INPUTS => \@limit_inputs );
@@ -609,7 +619,7 @@ for (my $i=0;$i<@servers;$i++) {
 
             if (!$borrowernumber || $borrowernumber eq '') {
                 # To a cookie (the user is not logged in)
-                if (($params->{'offset'}||'') eq '') {
+                if (!$offset) {
                     push @recentSearches, {
                                 "query_desc" => $query_desc_history || "unknown",
                                 "query_cgi"  => $query_cgi_history  || "unknown",
@@ -631,7 +641,7 @@ for (my $i=0;$i<@servers;$i++) {
             }
             else {
                 # To the session (the user is logged in)
-                if (($params->{'offset'}||'') eq '') {
+                if (!$offset) {
                     AddSearchHistory($borrowernumber, $cgi->cookie("CGISESSID"), $query_desc_history, $query_cgi_history, $total);
                     $template->param(ShowOpacRecentSearchLink => 1);
                 }

@@ -31,20 +31,24 @@ use C4::Acquisition;
 use C4::Koha;    # XXX subfield_is_koha_internal_p
 use C4::Biblio;
 
-my $query        = new CGI;
-my $op           = $query->param('op');
+my $query = new CGI;
+my $op    = $query->param('op');
 $op ||= q{};
 my $authtypecode = $query->param('authtypecode');
 $authtypecode ||= q{};
-my $dbh          = C4::Context->dbh;
+my $dbh = C4::Context->dbh;
 
 my $authid = $query->param('authid');
 my ( $template, $loggedinuser, $cookie );
 
 my $authtypes = getauthtypes;
 my @authtypesloop;
-foreach my $thisauthtype ( sort { $authtypes->{$a}{'authtypetext'} cmp $authtypes->{$b}{'authtypetext'} }
-    keys %$authtypes )
+foreach my $thisauthtype (
+    sort {
+        $authtypes->{$a}{'authtypetext'} cmp $authtypes->{$b}{'authtypetext'}
+    }
+    keys %$authtypes
+  )
 {
     my %row = (
         value        => $thisauthtype,
@@ -54,6 +58,21 @@ foreach my $thisauthtype ( sort { $authtypes->{$a}{'authtypetext'} cmp $authtype
     push @authtypesloop, \%row;
 }
 
+if ( $op eq "delete" ) {
+    ( $template, $loggedinuser, $cookie ) = get_template_and_user(
+        {
+            template_name   => "authorities/authorities-home.tmpl",
+            query           => $query,
+            type            => 'intranet',
+            authnotrequired => 0,
+            flagsrequired   => { catalogue => 1 },
+            debug           => 1,
+        }
+    );
+    &DelAuthority( $authid, 1 );
+
+    $op = "do_search";
+}
 if ( $op eq "do_search" ) {
     my @marclist  = $query->param('marclist');
     my @and_or    = $query->param('and_or');
@@ -69,7 +88,7 @@ if ( $op eq "do_search" ) {
       SearchAuthorities( \@marclist, \@and_or, \@excluding, \@operator, \@value,
         ( $startfrom - 1 ) * $resultsperpage,
         $resultsperpage, $authtypecode, $orderby );
-#     use Data::Dumper; warn Data::Dumper::Dumper(@$results);
+
     ( $template, $loggedinuser, $cookie ) = get_template_and_user(
         {
             template_name   => "authorities/searchresultlist.tmpl",
@@ -81,6 +100,18 @@ if ( $op eq "do_search" ) {
         }
     );
 
+    $template->param(
+        marclist       => $query->param('marclist'),
+        and_or         => $query->param('and_or'),
+        excluding      => $query->param('excluding'),
+        operator       => $query->param('operator'),
+        orderby        => $query->param('orderby'),
+        value          => $query->param('value'),
+        authtypecode   => $query->param('authtypecode'),
+        startfrom      => $startfrom,
+        resultsperpage => $resultsperpage,
+    );
+
     my @field_data = ();
 
     # we must get parameters once again. Because if there is a mainentry, it
@@ -88,19 +119,19 @@ if ( $op eq "do_search" ) {
     # next/previous would not work anymore
     my @marclist_ini = $query->param('marclist');
     for ( my $i = 0 ; $i <= $#marclist ; $i++ ) {
-        if ($value[$i]){   
-          push @field_data, { term => "marclist",  val => $marclist_ini[$i] };
-          if (!defined $and_or[$i]) {
-              $and_or[$i] = q{};
-          }
-          push @field_data, { term => "and_or",    val => $and_or[$i] };
-          if (!defined $excluding[$i]) {
-              $excluding[$i] = q{};
-          }
-          push @field_data, { term => "excluding", val => $excluding[$i] };
-          push @field_data, { term => "operator",  val => $operator[$i] };
-          push @field_data, { term => "value",     val => $value[$i] };
-        }    
+        if ( $value[$i] ) {
+            push @field_data, { term => "marclist", val => $marclist_ini[$i] };
+            if ( !defined $and_or[$i] ) {
+                $and_or[$i] = q{};
+            }
+            push @field_data, { term => "and_or", val => $and_or[$i] };
+            if ( !defined $excluding[$i] ) {
+                $excluding[$i] = q{};
+            }
+            push @field_data, { term => "excluding", val => $excluding[$i] };
+            push @field_data, { term => "operator",  val => $operator[$i] };
+            push @field_data, { term => "value",     val => $value[$i] };
+        }
     }
 
     # construction of the url of each page
@@ -121,7 +152,7 @@ if ( $op eq "do_search" ) {
 
     my $from = ( $startfrom - 1 ) * $resultsperpage + 1;
     my $to;
-    if (!defined $total) {
+    if ( !defined $total ) {
         $total = 0;
     }
 
@@ -146,20 +177,7 @@ if ( $op eq "do_search" ) {
     );
 
 }
-elsif ( $op eq "delete" ) {
-    ( $template, $loggedinuser, $cookie ) = get_template_and_user(
-        {
-            template_name   => "authorities/authorities-home.tmpl",
-            query           => $query,
-            type            => 'intranet',
-            authnotrequired => 0,
-            flagsrequired   => { catalogue => 1 },
-            debug           => 1,
-        }
-    );
-    &DelAuthority( $authid, 1 );
-}
-else {
+if ( $op eq '' ) {
     ( $template, $loggedinuser, $cookie ) = get_template_and_user(
         {
             template_name   => "authorities/authorities-home.tmpl",
@@ -173,9 +191,7 @@ else {
 
 }
 
-$template->param(
-    authtypesloop => \@authtypesloop,
-);
+$template->param( authtypesloop => \@authtypesloop, );
 
 $template->{VARS}->{marcflavour} = C4::Context->preference("marcflavour");
 

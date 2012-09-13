@@ -47,10 +47,9 @@ $(document).ready(function () {
 </script>
 </head>
 <body id="circ_returns" class="circ">
-<div id="header" class="gradient">
+
 [% INCLUDE 'header.inc' %]
 [% INCLUDE 'checkin-search.inc' %]
-</div>
 
 <div id="breadcrumbs"><a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; <a href="/cgi-bin/koha/circ/circulation-home.pl">Circulation</a> &rsaquo; Check in</div>
 
@@ -429,7 +428,7 @@ $(document).ready(function () {
 [% IF ( riloop ) %]
     <h2>Checked-in items</h2>
     <table>
-    <tr><th>Due date</th><th>Title</th>	<th>Author</th>	<th>Barcode</th><th>Shelving location</th><th>Call number</th><th>Type</th>	<th>Patron</th><th>Note</th></tr>
+    <tr><th>Due date</th><th>Title</th>	<th>Author</th>	<th>Barcode</th><th>Home branch</th><th>Holding branch</th><th>Shelving location</th><th>Call number</th><th>Type</th>	<th>Patron</th><th>Note</th></tr>
 
         [% FOREACH riloo IN riloop %]
             <tr>
@@ -445,6 +444,8 @@ $(document).ready(function () {
                     [% riloo.itemtitle |html %]</a></td>
 			<td>[% riloo.itemauthor %]</td>
             <td><a href="/cgi-bin/koha/catalogue/moredetail.pl?biblionumber=[% riloo.itembiblionumber %]&amp;itemnumber=[% riloo.itemnumber %]#item[% riloo.itemnumber %]">[% riloo.barcode %]</a></td>
+            <td>[% riloo.homebranch %]</td>
+            <td>[% riloo.holdingbranch %]</td>
             <td>[% riloo.location %]</td>
             <td>[% riloo.itemcallnumber %]</td>
             <td>[% riloo.itemtype %] [% riloo.ccode %]</td>

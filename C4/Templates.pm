@@ -36,7 +36,7 @@ use C4::Languages qw(getTranslatedLanguages get_bidi regex_lang_subtags language
 
 use C4::Context;
 
-__PACKAGE__->mk_accessors(qw( theme lang filename htdocs interface vars));
+__PACKAGE__->mk_accessors(qw( theme activethemes preferredtheme lang filename htdocs interface vars));
 
 
 
@@ -53,17 +53,19 @@ sub new {
     else {
         $htdocs = C4::Context->config('intrahtdocs');
     }
-    my ($theme, $lang)= themelanguage( $htdocs, $tmplbase, $interface, $query);
+    my ($theme, $lang, $activethemes)= themelanguage( $htdocs, $tmplbase, $interface, $query);
+    my @includes;
+    foreach (@$activethemes) {
+        push @includes, "$htdocs/$_/$lang/includes";
+        push @includes, "$htdocs/$_/en/includes" unless $lang eq 'en';
+    }
     my $template = Template->new(
         {   EVAL_PERL    => 1,
             ABSOLUTE     => 1,
             PLUGIN_BASE => 'Koha::Template::Plugin',
             COMPILE_EXT => C4::Context->config('template_cache_dir')?'.ttc':'',
             COMPILE_DIR => C4::Context->config('template_cache_dir')?C4::Context->config('template_cache_dir'):'',,
-            INCLUDE_PATH => [
-                "$htdocs/$theme/$lang/includes",
-                "$htdocs/$theme/en/includes"
-            ],
+            INCLUDE_PATH => \@includes,
             FILTERS => {},
         }
     ) or die Template->error();
@@ -74,6 +76,8 @@ sub new {
     bless $self, $class;
     $self->theme($theme);
     $self->lang($lang);
+    $self->activethemes($activethemes);
+    $self->preferredtheme($activethemes->[0]);
     $self->filename($filename);
     $self->htdocs($htdocs);
     $self->interface($interface);
@@ -95,18 +99,19 @@ sub output {
         $vars->{themelang} = '/opac-tmpl';
     }
     $vars->{lang} = $self->lang;
-    $vars->{themelang} .= '/' . $self->theme . '/' . $self->lang;
+    $vars->{themelang} .= '/' . $self->preferredtheme . '/' . $self->lang;
     $vars->{yuipath} =
       ( C4::Context->preference("yuipath") eq "local"
-        ? $vars->{themelang} . "/lib/yui"
+        ? ( $self->interface eq 'intranet' ? $vars->{themelang} . "/lib/yui" : "/opac-tmpl/lib/yui" )
         : C4::Context->preference("yuipath") );
     $vars->{interface} =
       ( $self->{interface} ne 'intranet' ? '/opac-tmpl' : '/intranet-tmpl' );
     $vars->{theme} = $self->theme;
     $vars->{opaccolorstylesheet} =
-      C4::Context->preference('opaccolorstylesheet');
+        C4::Context->preference('opaccolorstylesheet');
     $vars->{opacsmallimage} = C4::Context->preference('opacsmallimage');
-    $vars->{opacstylesheet} = C4::Context->preference('opacstylesheet');
+    $vars->{opaclayoutstylesheet} =
+        C4::Context->preference('opaclayoutstylesheet');
 
     # add variables set via param to $vars for processing
     # and clean any utf8 mess
@@ -210,8 +215,7 @@ sub _get_template_file {
 
     my $is_intranet = $interface eq 'intranet';
     my $htdocs = C4::Context->config($is_intranet ? 'intrahtdocs' : 'opachtdocs');
-    my ($theme, $lang) = themelanguage($htdocs, $tmplbase, $interface, $query);
-    my $opacstylesheet = C4::Context->preference('opacstylesheet');
+    my ($theme, $lang, $availablethemes) = themelanguage($htdocs, $tmplbase, $interface, $query);
 
     # if the template doesn't exist, load the English one as a last resort
     my $filename = "$htdocs/$theme/$lang/modules/$tmplbase";
@@ -227,24 +231,25 @@ sub gettemplate {
     my ( $tmplbase, $interface, $query ) = @_;
     ($query) or warn "no query in gettemplate";
     my $path = C4::Context->preference('intranet_includes') || 'includes';
-    my $opacstylesheet = C4::Context->preference('opacstylesheet');
     $tmplbase =~ s/\.tmpl$/.tt/;
     my ($htdocs, $theme, $lang, $filename)
        =  _get_template_file($tmplbase, $interface, $query);
     my $template = C4::Templates->new($interface, $filename, $tmplbase, $query);
-    my $is_intranet = $interface eq 'intranet';
-    my $themelang =
-        ($is_intranet ? '/intranet-tmpl' : '/opac-tmpl') .
-        "/$theme/$lang";
-    $template->param(
-        themelang => $themelang,
-        yuipath   => C4::Context->preference("yuipath") eq "local"
-                     ? "$themelang/lib/yui"
-                     : C4::Context->preference("yuipath"),
-        interface => $is_intranet ? '/intranet-tmpl' : '/opac-tmpl',
-        theme     => $theme,
-        lang      => $lang
-    );
+# NOTE: Commenting these out rather than deleting them so that those who need
+# to know how we previously shimmed these directories will be able to understand.
+#    my $is_intranet = $interface eq 'intranet';
+#    my $themelang =
+#        ($is_intranet ? '/intranet-tmpl' : '/opac-tmpl') .
+#        "/$theme/$lang";
+#    $template->param(
+#        themelang => $themelang,
+#        yuipath   => C4::Context->preference("yuipath") eq "local"
+#                     ? "$themelang/lib/yui"
+#                     : C4::Context->preference("yuipath"),
+#        interface => $is_intranet ? '/intranet-tmpl' : '/opac-tmpl',
+#        theme     => $theme,
+#        lang      => $lang
+#    );
 
     # Bidirectionality
     my $current_lang = regex_lang_subtags($lang);
@@ -287,11 +292,11 @@ sub themelanguage {
     for my $theme (@themes) {
         if ( -e "$htdocs/$theme/$lang/modules/$tmpl" ) {
             $_current_language = $lang;
-            return ($theme, $lang)
+            return ($theme, $lang, \@themes)
         }
     }
     # Otherwise, return prog theme in English 'en'
-    return ('prog', 'en');
+    return ('prog', 'en', \@themes);
 }
 
 

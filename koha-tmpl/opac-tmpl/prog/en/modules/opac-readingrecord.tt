@@ -59,13 +59,16 @@ You have never borrowed anything from this library.
 <th>Item type</th>
 <th>Call no.</th>
 <th>Date</th>
+[% IF ( OPACMySummaryHTML ) %]
+<th>Links</th>
+[% END %]
 </tr>
 
 [% FOREACH READING_RECOR IN READING_RECORD %]
 
 [% UNLESS ( loop.odd ) %]<tr class="highlight">[% ELSE %]<tr>[% END %]
 <td>
-[% IF ( OPACAmazonEnabled ) %][% IF ( OPACAmazonCoverImages ) %][% IF ( READING_RECOR.normalized_isbn ) %]<a href="http://www.amazon.com/gp/reader/[% READING_RECOR.normalized_isbn %]/ref=sib_dp_pt/002-7879865-0184864#reader-link"><img border="0" src="http://images.amazon.com/images/P/[% READING_RECOR.normalized_isbn %].01.THUMBZZZ.jpg" alt="Cover Image" /></a>[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %][% END %]
+[% IF ( OPACAmazonCoverImages ) %][% IF ( READING_RECOR.normalized_isbn ) %]<a href="http://www.amazon.com/gp/reader/[% READING_RECOR.normalized_isbn %]/ref=sib_dp_pt/002-7879865-0184864#reader-link"><img border="0" src="http://images.amazon.com/images/P/[% READING_RECOR.normalized_isbn %].01.THUMBZZZ.jpg" alt="Cover Image" /></a>[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
 
     [% IF ( GoogleJackets ) %][% IF ( READING_RECOR.normalized_isbn ) %]<div style="block" title="[% READING_RECOR.biblionumber |url %]" class="[% READING_RECOR.normalized_isbn %]" id="gbs-thumbnail[% loop.count %]"></div>[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
 
@@ -85,6 +88,9 @@ You have never borrowed anything from this library.
 <td>[% UNLESS ( noItemTypeImages ) %][% IF ( READING_RECOR.imageurl ) %]<img src="[% READING_RECOR.imageurl %]" alt="" />[% END %][% END %] [% READING_RECOR.description %]</td>
 <td>[% READING_RECOR.itemcallnumber %]</td>
 <td>[% IF ( READING_RECOR.returndate ) %][% READING_RECOR.returndate | $KohaDates %][% ELSE %]<em>(Checked out)</em>[% END %]</td>
+[% IF ( OPACMySummaryHTML ) %]
+<td>[% READING_RECOR.MySummaryHTML %]</td>
+[% END %]
 </tr>
 
 [% END %]

@@ -110,10 +110,9 @@ for my $overdue ( @{$overdues} ) {
     }
     ++$counted;
 
-    my ( $amount, $type, $daycounttotal ) =
+    my ( $amount, $type, $unitcounttotal ) =
       CalcFine( $overdue, $borrower->{categorycode},
         $branchcode, $datedue, $today );
-
     $type ||= q{};
 
     # Don't update the fine if today is a holiday.
@@ -131,15 +130,15 @@ for my $overdue ( @{$overdues} ) {
     push @cells,
       map { defined $borrower->{$_} ? $borrower->{$_} : q{} } @borrower_fields;
     push @cells, map { $overdue->{$_} } @item_fields;
-    push @cells, $type, $daycounttotal, $amount;
+    push @cells, $type, $unitcounttotal, $amount;
     say {$fh} join $delim, @cells;
 }
 close $fh;
 
 if ($verbose) {
     my $overdue_items = @{$overdues};
-    print <<'EOM';
-Fines assessment -- $today->ymd() -- Saved to $filename
+    print <<"EOM";
+Fines assessment -- $today -- Saved to $filename
 Number of Overdue Items:
      counted $overdue_items
     reported $counted

@@ -105,6 +105,7 @@ BEGIN {
       &ModBiblioframework
       &ModZebra
       &UpdateTotalIssues
+      &RemoveAllNsb
     );
 
     # To delete something
@@ -3103,7 +3104,7 @@ sub _koha_marc_update_bib_ids {
     my ( $biblio_tag,     $biblio_subfield )     = GetMarcFromKohaField( "biblio.biblionumber",          $frameworkcode );
     die qq{No biblionumber tag for framework "$frameworkcode"} unless $biblio_tag;
     my ( $biblioitem_tag, $biblioitem_subfield ) = GetMarcFromKohaField( "biblioitems.biblioitemnumber", $frameworkcode );
-    die qq{No biblioitemnumber tag for framework "$frameworkcode"} unless $biblio_tag;
+    die qq{No biblioitemnumber tag for framework "$frameworkcode"} unless $biblioitem_tag;
 
     if ( $biblio_tag == $biblioitem_tag ) {
 
@@ -3318,7 +3319,8 @@ sub _koha_modify_biblioitem_nonmarc {
         cn_suffix       = ?,
         cn_sort         = ?,
         totalissues     = ?,
-    ean             = ?
+        ean             = ?,
+        agerestriction  = ?
         where biblioitemnumber = ?
         ";
     my $sth = $dbh->prepare($query);
@@ -3330,8 +3332,7 @@ sub _koha_modify_biblioitem_nonmarc {
         $biblioitem->{'pages'},            $biblioitem->{'bnotes'},           $biblioitem->{'size'},                  $biblioitem->{'place'},
         $biblioitem->{'lccn'},             $biblioitem->{'url'},              $biblioitem->{'biblioitems.cn_source'}, $biblioitem->{'cn_class'},
         $biblioitem->{'cn_item'},          $biblioitem->{'cn_suffix'},        $cn_sort,                               $biblioitem->{'totalissues'},
-    $biblioitem->{'ean'},
-        $biblioitem->{'biblioitemnumber'}
+        $biblioitem->{'ean'},              $biblioitem->{'agerestriction'},   $biblioitem->{'biblioitemnumber'}
     );
     if ( $dbh->errstr ) {
         $error .= "ERROR in _koha_modify_biblioitem_nonmarc $query" . $dbh->errstr;
@@ -3383,7 +3384,8 @@ sub _koha_add_biblioitem {
         cn_suffix       = ?,
         cn_sort         = ?,
         totalissues     = ?,
-    ean             = ?
+        ean             = ?,
+        agerestriction  = ?
         ";
     my $sth = $dbh->prepare($query);
     $sth->execute(
@@ -3394,7 +3396,7 @@ sub _koha_add_biblioitem {
         $biblioitem->{'pages'},            $biblioitem->{'bnotes'},           $biblioitem->{'size'},                  $biblioitem->{'place'},
         $biblioitem->{'lccn'},             $biblioitem->{'marc'},             $biblioitem->{'url'},                   $biblioitem->{'biblioitems.cn_source'},
         $biblioitem->{'cn_class'},         $biblioitem->{'cn_item'},          $biblioitem->{'cn_suffix'},             $cn_sort,
-        $biblioitem->{'totalissues'},      $biblioitem->{'ean'}
+        $biblioitem->{'totalissues'},      $biblioitem->{'ean'},              $biblioitem->{'agerestriction'}
     );
     my $bibitemnum = $dbh->{'mysql_insertid'};
 
@@ -3874,6 +3876,50 @@ sub UpdateTotalIssues {
 
      ModBiblio($record, $biblionumber, $data->{'frameworkcode'});
      return;
+}
+
+=head2 RemoveAllNsb
+
+    &RemoveAllNsb($record);
+
+Removes all nsb/nse chars from a record
+
+=cut
+
+sub RemoveAllNsb {
+    my $record = shift;
+
+    SetUTF8Flag($record);
+
+    foreach my $field ($record->fields()) {
+        if ($field->is_control_field()) {
+            $field->update(nsb_clean($field->data()));
+        } else {
+            my @subfields = $field->subfields();
+            my @new_subfields;
+            foreach my $subfield (@subfields) {
+                push @new_subfields, $subfield->[0] => nsb_clean($subfield->[1]);
+            }
+            if (scalar(@new_subfields) > 0) {
+                my $new_field;
+                eval {
+                    $new_field = MARC::Field->new(
+                        $field->tag(),
+                        $field->indicator(1),
+                        $field->indicator(2),
+                        @new_subfields
+                    );
+                };
+                if ($@) {
+                    warn "error in RemoveAllNsb : $@";
+                } else {
+                    $field->replace_with($new_field);
+                }
+            }
+        }
+    }
+
+    return $record;
 }
 
 1;

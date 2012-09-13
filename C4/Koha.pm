@@ -674,6 +674,7 @@ sub getallthemes {
     opendir D, "$htdocs";
     my @dirlist = readdir D;
     foreach my $directory (@dirlist) {
+        next if $directory eq 'lib';
         -d "$htdocs/$directory/en" and push @themes, $directory;
     }
     return @themes;
@@ -1232,7 +1233,7 @@ sub GetNormalizedUPC {
 }
 
 # Normalizes and returns the first valid ISBN found in the record
-# ISBN13 are converted into ISBN10. This is required to get Amazon cover book.
+# ISBN13 are converted into ISBN10. This is required to get some book cover images.
 sub GetNormalizedISBN {
     my ($isbn,$record,$marcflavour) = @_;
     my @fields;

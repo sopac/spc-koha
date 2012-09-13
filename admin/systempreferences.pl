@@ -203,6 +203,7 @@ $tabsysprefs{DisplayClearScreenButton}       = "Circulation";
 $tabsysprefs{AllowAllMessageDeletion}        = "Circulation";
 $tabsysprefs{OverdueNoticeBcc}               = "Circulation";
 $tabsysprefs{OverduesBlockCirc}              = "Circulation";
+$tabsysprefs{UseTransportCostMatrix}         = "Circulation";
 
 
 # Staff Client
@@ -266,18 +267,10 @@ $tabsysprefs{AdvancedSearchTypes}     = "Searching";
 $tabsysprefs{DisplayMultiPlaceHold}   = "Searching";
 
 # EnhancedContent
-$tabsysprefs{AmazonEnabled}          = "EnhancedContent";
-$tabsysprefs{OPACAmazonEnabled}      = "EnhancedContent";
 $tabsysprefs{AmazonCoverImages}      = "EnhancedContent";
 $tabsysprefs{OPACAmazonCoverImages}  = "EnhancedContent";
-$tabsysprefs{AWSAccessKeyID}         = "EnhancedContent";
-$tabsysprefs{AWSPrivateKey}          = "EnhancedContent";
 $tabsysprefs{AmazonLocale}           = "EnhancedContent";
 $tabsysprefs{AmazonAssocTag}         = "EnhancedContent";
-$tabsysprefs{AmazonSimilarItems}     = "EnhancedContent";
-$tabsysprefs{OPACAmazonSimilarItems} = "EnhancedContent";
-$tabsysprefs{AmazonReviews}          = "EnhancedContent";
-$tabsysprefs{OPACAmazonReviews}      = "EnhancedContent";
 
 # Babelthèque
 $tabsysprefs{Babeltheque}            = "EnhancedContent";
@@ -335,7 +328,6 @@ $tabsysprefs{opaccredits}                = "OPAC";
 $tabsysprefs{opaclayoutstylesheet}       = "OPAC";
 $tabsysprefs{OpacNav}                    = "OPAC";
 $tabsysprefs{opacsmallimage}             = "OPAC";
-$tabsysprefs{opacstylesheet}             = "OPAC";
 $tabsysprefs{opacthemes}                 = "OPAC";
 $tabsysprefs{opacuserjs}                 = "OPAC";
 $tabsysprefs{opacheader}                 = "OPAC";

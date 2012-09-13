@@ -29,6 +29,8 @@ use C4::Suggestions;
 use C4::Biblio;
 use C4::Debug;
 use C4::SQLHelper qw(InsertInTable);
+use C4::Bookseller qw(GetBookSellerFromId);
+use C4::Templates qw(gettemplate);
 
 use Time::localtime;
 use HTML::Entities;
@@ -42,7 +44,7 @@ BEGIN {
     @ISA    = qw(Exporter);
     @EXPORT = qw(
         &GetBasket &NewBasket &CloseBasket &DelBasket &ModBasket
-	&GetBasketAsCSV
+        &GetBasketAsCSV &GetBasketGroupAsCSV
         &GetBasketsByBookseller &GetBasketsByBasketgroup
         &GetBasketsInfosByBookseller
 
@@ -227,53 +229,126 @@ sub CloseBasket {
 
 Export a basket as CSV
 
+$cgi parameter is needed for column name translation
+
 =cut
 
 sub GetBasketAsCSV {
-    my ($basketno) = @_;
+    my ($basketno, $cgi) = @_;
     my $basket = GetBasket($basketno);
     my @orders = GetOrders($basketno);
     my $contract = GetContract($basket->{'contractnumber'});
-    my $csv = Text::CSV->new();
-    my $output; 
 
-    # TODO: Translate headers
-    my @headers = qw(contractname ordernumber entrydate isbn author title publishercode collectiontitle notes quantity rrp);
-
-    $csv->combine(@headers);                                                                                                        
-    $output = $csv->string() . "\n";	
+    my $template = C4::Templates::gettemplate("acqui/csv/basket.tmpl", "intranet", $cgi);
 
     my @rows;
     foreach my $order (@orders) {
-	my @cols;
-	# newlines are not valid characters for Text::CSV combine()
-        $order->{'notes'} =~ s/[\r\n]+//g;
-	push(@cols,
-		$contract->{'contractname'},
-		$order->{'ordernumber'},
-		$order->{'entrydate'}, 
-		$order->{'isbn'},
-		$order->{'author'},
-		$order->{'title'},
-		$order->{'publishercode'},
-		$order->{'collectiontitle'},
-		$order->{'notes'},
-		$order->{'quantity'},
-		$order->{'rrp'},
-	    );
-	push (@rows, \@cols);
+        my $bd = GetBiblioData( $order->{'biblionumber'} );
+        my $row = {
+            contractname => $contract->{'contractname'},
+            ordernumber => $order->{'ordernumber'},
+            entrydate => $order->{'entrydate'},
+            isbn => $order->{'isbn'},
+            author => $bd->{'author'},
+            title => $bd->{'title'},
+            publicationyear => $bd->{'publicationyear'},
+            publishercode => $bd->{'publishercode'},
+            collectiontitle => $bd->{'collectiontitle'},
+            notes => $order->{'notes'},
+            quantity => $order->{'quantity'},
+            rrp => $order->{'rrp'},
+            deliveryplace => $basket->{'deliveryplace'},
+            billingplace => $basket->{'billingplace'}
+        };
+        foreach(qw(
+            contractname author title publishercode collectiontitle notes
+            deliveryplace billingplace
+        ) ) {
+            # Double the quotes to not be interpreted as a field end
+            $row->{$_} =~ s/"/""/g if $row->{$_};
+        }
+        push @rows, $row;
     }
 
-    foreach my $row (@rows) {
-	$csv->combine(@$row);                                                                                                                    
-	$output .= $csv->string() . "\n";    
+    @rows = sort {
+        if(defined $a->{publishercode} and defined $b->{publishercode}) {
+            $a->{publishercode} cmp $b->{publishercode};
+        }
+    } @rows;
 
-    }
-                                                                                                                                                      
-    return $output;             
+    $template->param(rows => \@rows);
 
+    return $template->output;
 }
 
+
+=head3 GetBasketGroupAsCSV
+
+=over 4
+
+&GetBasketGroupAsCSV($basketgroupid);
+
+Export a basket group as CSV
+
+$cgi parameter is needed for column name translation
+
+=back
+
+=cut
+
+sub GetBasketGroupAsCSV {
+    my ($basketgroupid, $cgi) = @_;
+    my $baskets = GetBasketsByBasketgroup($basketgroupid);
+
+    my $template = C4::Templates::gettemplate('acqui/csv/basketgroup.tmpl', 'intranet', $cgi);
+
+    my @rows;
+    for my $basket (@$baskets) {
+        my @orders     = GetOrders( $$basket{basketno} );
+        my $contract   = GetContract( $$basket{contractnumber} );
+        my $bookseller = GetBookSellerFromId( $$basket{booksellerid} );
+
+        foreach my $order (@orders) {
+            my $bd = GetBiblioData( $order->{'biblionumber'} );
+            my $row = {
+                clientnumber => $bookseller->{accountnumber},
+                basketname => $basket->{basketname},
+                ordernumber => $order->{ordernumber},
+                author => $bd->{author},
+                title => $bd->{title},
+                publishercode => $bd->{publishercode},
+                publicationyear => $bd->{publicationyear},
+                collectiontitle => $bd->{collectiontitle},
+                isbn => $order->{isbn},
+                quantity => $order->{quantity},
+                rrp => $order->{rrp},
+                discount => $bookseller->{discount},
+                ecost => $order->{ecost},
+                notes => $order->{notes},
+                entrydate => $order->{entrydate},
+                booksellername => $bookseller->{name},
+                bookselleraddress => $bookseller->{address1},
+                booksellerpostal => $bookseller->{postal},
+                contractnumber => $contract->{contractnumber},
+                contractname => $contract->{contractname},
+            };
+            foreach(qw(
+                basketname author title publishercode collectiontitle notes
+                booksellername bookselleraddress booksellerpostal contractname
+                basketgroupdeliveryplace basketgroupbillingplace
+                basketdeliveryplace basketbillingplace
+            ) ) {
+                # Double the quotes to not be interpreted as a field end
+                $row->{$_} =~ s/"/""/g if $row->{$_};
+            }
+            push @rows, $row;
+         }
+     }
+    $template->param(rows => \@rows);
+
+    return $template->output;
+
+}
 
 =head3 CloseBasketgroup
 
@@ -490,7 +565,12 @@ sub GetBasketsInfosByBookseller {
         SELECT aqbasket.*,
           SUM(aqorders.quantity) AS total_items,
           COUNT(DISTINCT aqorders.biblionumber) AS total_biblios,
-          SUM(IF(aqorders.datereceived IS NULL, aqorders.quantity, 0)) AS expected_items
+          SUM(
+            IF(aqorders.datereceived IS NULL
+              AND aqorders.datecancellationprinted IS NULL
+            , aqorders.quantity
+            , 0)
+          ) AS expected_items
         FROM aqbasket
           LEFT JOIN aqorders ON aqorders.basketno = aqbasket.basketno
         WHERE booksellerid = ?
@@ -514,8 +594,11 @@ Returns a reference to all baskets that belong to basketgroup $basketgroupid.
 
 sub GetBasketsByBasketgroup {
     my $basketgroupid = shift;
-    my $query = "SELECT * FROM aqbasket
-                LEFT JOIN aqcontract USING(contractnumber) WHERE basketgroupid=?";
+    my $query = qq{
+        SELECT *, aqbasket.booksellerid as booksellerid
+        FROM aqbasket
+        LEFT JOIN aqcontract USING(contractnumber) WHERE basketgroupid=?
+    };
     my $dbh = C4::Context->dbh;
     my $sth = $dbh->prepare($query);
     $sth->execute($basketgroupid);
@@ -716,29 +799,23 @@ sub GetBasketgroups {
 
 =head3 GetPendingOrders
 
-  $orders = &GetPendingOrders($booksellerid, $grouped, $owner);
+$orders = &GetPendingOrders($supplierid,$grouped,$owner,$basketno,$ordernumber,$search,$ean);
 
 Finds pending orders from the bookseller with the given ID. Ignores
 completed and cancelled orders.
 
 C<$booksellerid> contains the bookseller identifier
-C<$grouped> contains 0 or 1. 0 means returns the list, 1 means return the total
 C<$owner> contains 0 or 1. 0 means any owner. 1 means only the list of orders entered by the user itself.
-
-C<$orders> is a reference-to-array; each element is a
-reference-to-hash with the following fields:
 C<$grouped> is a boolean that, if set to 1 will group all order lines of the same basket
 in a single result line
+C<$orders> is a reference-to-array; each element is a reference-to-hash.
 
-=over
+Used also by the filter in parcel.pl
+I have added:
 
-=item C<authorizedby>
-
-=item C<entrydate>
-
-=item C<basketno>
-
-=back
+C<$ordernumber>
+C<$search>
+C<$ean>
 
 These give the value of the corresponding field in the aqorders table
 of the Koha database.
@@ -748,41 +825,55 @@ Results are ordered from most to least recent.
 =cut
 
 sub GetPendingOrders {
-    my ($supplierid,$grouped,$owner,$basketno) = @_;
+    my ($supplierid,$grouped,$owner,$basketno,$ordernumber,$search,$ean) = @_;
     my $dbh = C4::Context->dbh;
     my $strsth = "
-        SELECT    ".($grouped?"count(*),":"")."aqbasket.basketno,
-                    surname,firstname,biblio.*,biblioitems.isbn,
-                    aqbasket.closedate, aqbasket.creationdate, aqbasket.basketname,
-                    aqorders.*
-        FROM      aqorders
+        SELECT ".($grouped?"count(*),":"")."aqbasket.basketno,
+               surname,firstname,biblio.*,biblioitems.isbn,
+               aqbasket.closedate, aqbasket.creationdate, aqbasket.basketname,
+               aqorders.*
+        FROM aqorders
         LEFT JOIN aqbasket ON aqbasket.basketno=aqorders.basketno
         LEFT JOIN borrowers ON aqbasket.authorisedby=borrowers.borrowernumber
         LEFT JOIN biblio ON biblio.biblionumber=aqorders.biblionumber
         LEFT JOIN biblioitems ON biblioitems.biblionumber=biblio.biblionumber
-        WHERE booksellerid=?
-            AND (quantity > quantityreceived OR quantityreceived is NULL)
-            AND datecancellationprinted IS NULL";
-    my @query_params = ( $supplierid );
+        WHERE (quantity > quantityreceived OR quantityreceived is NULL)
+        AND datecancellationprinted IS NULL";
+    my @query_params;
     my $userenv = C4::Context->userenv;
     if ( C4::Context->preference("IndependantBranches") ) {
         if ( ($userenv) && ( $userenv->{flags} != 1 ) ) {
-            $strsth .= " and (borrowers.branchcode = ?
+            $strsth .= " AND (borrowers.branchcode = ?
                         or borrowers.branchcode  = '')";
             push @query_params, $userenv->{branch};
         }
     }
-    if ($owner) {
-        $strsth .= " AND aqbasket.authorisedby=? ";
-        push @query_params, $userenv->{'number'};
+    if ($supplierid) {
+        $strsth .= " AND aqbasket.booksellerid = ?";
+        push @query_params, $supplierid;
+    }
+    if($ordernumber){
+        $strsth .= " AND (aqorders.ordernumber=?)";
+        push @query_params, $ordernumber;
+    }
+    if($search){
+        $strsth .= " AND (biblio.title like ? OR biblio.author LIKE ? OR biblioitems.isbn like ?)";
+        push @query_params, ("%$search%","%$search%","%$search%");
+    }
+    if ($ean) {
+        $strsth .= " AND biblioitems.ean = ?";
+        push @query_params, $ean;
     }
     if ($basketno) {
         $strsth .= " AND aqbasket.basketno=? ";
         push @query_params, $basketno;
     }
+    if ($owner) {
+        $strsth .= " AND aqbasket.authorisedby=? ";
+        push @query_params, $userenv->{'number'};
+    }
     $strsth .= " group by aqbasket.basketno" if $grouped;
     $strsth .= " order by aqbasket.basketno";
-
     my $sth = $dbh->prepare($strsth);
     $sth->execute( @query_params );
     my $results = $sth->fetchall_arrayref({});
@@ -1678,6 +1769,7 @@ sub GetHistory {
     my $to_placed_on = $params{to_placed_on};
     my $basket = $params{basket};
     my $booksellerinvoicenumber = $params{booksellerinvoicenumber};
+    my $basketgroupname = $params{basketgroupname};
     my @order_loop;
     my $total_qty         = 0;
     my $total_qtyreceived = 0;
@@ -1765,6 +1857,11 @@ sub GetHistory {
     if ($booksellerinvoicenumber) {
         $query .= " AND (aqorders.booksellerinvoicenumber LIKE ? OR aqbasket.booksellerinvoicenumber LIKE ?)";
         push @query_params, "%$booksellerinvoicenumber%", "%$booksellerinvoicenumber%";
+    }
+
+    if ($basketgroupname) {
+        $query .= " AND aqbasketgroups.name LIKE ? ";
+        push @query_params, "%$basketgroupname%";
     }
 
     if ( C4::Context->preference("IndependantBranches") ) {

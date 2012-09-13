@@ -334,10 +334,7 @@ sub get_template_and_user {
 
     if ( $in->{'type'} eq "intranet" ) {
         $template->param(
-            AmazonContent               => C4::Context->preference("AmazonContent"),
             AmazonCoverImages           => C4::Context->preference("AmazonCoverImages"),
-            AmazonEnabled               => C4::Context->preference("AmazonEnabled"),
-            AmazonSimilarItems          => C4::Context->preference("AmazonSimilarItems"),
             AutoLocation                => C4::Context->preference("AutoLocation"),
             "BiblioDefaultView".C4::Context->preference("IntranetBiblioDefaultView") => 1,
             CalendarFirstDayOfWeek      => (C4::Context->preference("CalendarFirstDayOfWeek") eq "Sunday")?0:1,
@@ -388,17 +385,8 @@ sub get_template_and_user {
         } elsif (C4::Context->preference("SearchMyLibraryFirst") && C4::Context->userenv && C4::Context->userenv->{'branch'}) {
             $opac_name = C4::Context->userenv->{'branch'};
         }
-	my $checkstyle = C4::Context->preference("opaccolorstylesheet");
-	if ($checkstyle =~ /http/)
-	{
-            	$template->param( opacexternalsheet => $checkstyle);
-	} else
-	{
-		my $opaccolorstylesheet = C4::Context->preference("opaccolorstylesheet");  
-            $template->param( opaccolorstylesheet => $opaccolorstylesheet);
-	}
         $template->param(
-            AmazonContent             => "" . C4::Context->preference("AmazonContent"),
+            opaccolorstylesheet       => C4::Context->preference("opaccolorstylesheet"),
             AnonSuggestions           => "" . C4::Context->preference("AnonSuggestions"),
             AuthorisedValueImages     => C4::Context->preference("AuthorisedValueImages"),
             BranchesLoop              => GetBranchesLoop($opac_name),
@@ -406,10 +394,7 @@ sub get_template_and_user {
             LibraryName               => "" . C4::Context->preference("LibraryName"),
             LibraryNameTitle          => "" . $LibraryNameTitle,
             LoginBranchname           => C4::Context->userenv?C4::Context->userenv->{"branchname"}:"",
-            OPACAmazonEnabled         => C4::Context->preference("OPACAmazonEnabled"),
-            OPACAmazonSimilarItems    => C4::Context->preference("OPACAmazonSimilarItems"),
             OPACAmazonCoverImages     => C4::Context->preference("OPACAmazonCoverImages"),
-            OPACAmazonReviews         => C4::Context->preference("OPACAmazonReviews"),
             OPACFRBRizeEditions       => C4::Context->preference("OPACFRBRizeEditions"),
             OpacHighlightedWords       => C4::Context->preference("OpacHighlightedWords"),
             OPACItemHolds             => C4::Context->preference("OPACItemHolds"),
@@ -441,7 +426,6 @@ sub get_template_and_user {
             hidelostitems             => C4::Context->preference("hidelostitems"),
             mylibraryfirst            => (C4::Context->preference("SearchMyLibraryFirst") && C4::Context->userenv) ? C4::Context->userenv->{'branch'} : '',
             opaclayoutstylesheet      => "" . C4::Context->preference("opaclayoutstylesheet"),
-            opacstylesheet            => "" . C4::Context->preference("opacstylesheet"),
             opacbookbag               => "" . C4::Context->preference("opacbookbag"),
             opaccredits               => "" . C4::Context->preference("opaccredits"),
             OpacFavicon               => C4::Context->preference("OpacFavicon"),
@@ -946,19 +930,12 @@ sub checkauth {
     }
 
     my $template_name = ( $type eq 'opac' ) ? 'opac-auth.tmpl' : 'auth.tmpl';
-    my $template = C4::Templates::gettemplate( $template_name, $type, $query );
-    $template->param(branchloop => \@branch_loop,);
-    my $checkstyle = C4::Context->preference("opaccolorstylesheet");
-    if ($checkstyle =~ /\//)
-	{
-            	$template->param( opacexternalsheet => $checkstyle);
-	} else
-	{
-		my $opaccolorstylesheet = C4::Context->preference("opaccolorstylesheet");  
-            $template->param( opaccolorstylesheet => $opaccolorstylesheet);
-	}
+    my $template = C4::Templates::gettemplate($template_name, $type, $query );
     $template->param(
-    login        => 1,
+        branchloop           => \@branch_loop,
+        opaccolorstylesheet  => C4::Context->preference("opaccolorstylesheet"),
+        opaclayoutstylesheet => C4::Context->preference("opaclayoutstylesheet"),
+        login                => 1,
         INPUTS               => \@inputs,
         casAuthentication    => C4::Context->preference("casAuthentication"),
         suggestion           => C4::Context->preference("suggestion"),
@@ -972,7 +949,6 @@ sub checkauth {
         OpacFavicon          => C4::Context->preference("OpacFavicon"),
         opacreadinghistory   => C4::Context->preference("opacreadinghistory"),
         opacsmallimage       => C4::Context->preference("opacsmallimage"),
-        opaclayoutstylesheet => C4::Context->preference("opaclayoutstylesheet"),
         opaclanguagesdisplay => C4::Context->preference("opaclanguagesdisplay"),
         opacuserjs           => C4::Context->preference("opacuserjs"),
         opacbookbag          => "" . C4::Context->preference("opacbookbag"),
@@ -983,7 +959,6 @@ sub checkauth {
         opacheader           => C4::Context->preference("opacheader"),
         TagsEnabled                  => C4::Context->preference("TagsEnabled"),
         OPACUserCSS           => C4::Context->preference("OPACUserCSS"),
-        opacstylesheet       => C4::Context->preference("opacstylesheet"),
         intranetcolorstylesheet =>
 								C4::Context->preference("intranetcolorstylesheet"),
         intranetstylesheet => C4::Context->preference("intranetstylesheet"),

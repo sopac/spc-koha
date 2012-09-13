@@ -178,6 +178,7 @@ CREATE TABLE `biblioitems` ( -- information related to bibliographic records in 
   `cn_item` varchar(10) default NULL,
   `cn_suffix` varchar(10) default NULL,
   `cn_sort` varchar(30) default NULL,
+  `agerestriction` varchar(255) default NULL,
   `totalissues` int(10),
   `marcxml` longtext NOT NULL, -- full bibliographic MARC record in MARCXML
   PRIMARY KEY  (`biblioitemnumber`),
@@ -650,6 +651,7 @@ CREATE TABLE `deletedbiblioitems` ( -- information about bibliographic records t
   `cn_item` varchar(10) default NULL,
   `cn_suffix` varchar(10) default NULL,
   `cn_sort` varchar(30) default NULL,
+  `agerestriction` varchar(255) default NULL,
   `totalissues` int(10),
   `marcxml` longtext NOT NULL, -- full bibliographic MARC record in MARCXML
   PRIMARY KEY  (`biblioitemnumber`),
@@ -770,7 +772,7 @@ CREATE TABLE `deleteditems` (
   `timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP, -- date and time this item was last altered
   `location` varchar(80) default NULL, -- authorized value for the shelving location for this item (MARC21 952$c)
   `permanent_location` varchar(80) default NULL, -- linked to the CART and PROC temporary locations feature, stores the permanent shelving location
-  `onloan` date default NULL, -- defines if this item is currently checked out (1 for yes, 0 for no)
+  `onloan` date default NULL, -- defines if item is checked out (NULL for not checked out, and checkout date for checked out)
   `cn_source` varchar(10) default NULL, -- classification source used on this item (MARC21 952$2)
   `cn_sort` varchar(30) default NULL, -- normalized form of the call number (MARC21 952$o) used for sorting
   `ccode` varchar(10) default NULL, -- authorized value for the collection code associated with this item (MARC21 952$8)
@@ -998,6 +1000,7 @@ CREATE TABLE `issuingrules` ( -- circulation and fine rules
   `renewalsallowed` smallint(6) NOT NULL default "0", -- how many renewals are allowed
   `reservesallowed` smallint(6) NOT NULL default "0", -- how many holds are allowed
   `branchcode` varchar(10) NOT NULL default '', -- the branch this rule is for (branches.branchcode)
+  overduefinescap decimal default NULL, -- the maximum amount of an overdue fine
   PRIMARY KEY  (`branchcode`,`categorycode`,`itemtype`),
   KEY `categorycode` (`categorycode`),
   KEY `itemtype` (`itemtype`)
@@ -1037,7 +1040,7 @@ CREATE TABLE `items` ( -- holdings/item information
   `timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP, -- date and time this item was last altered
   `location` varchar(80) default NULL, -- authorized value for the shelving location for this item (MARC21 952$c)
   `permanent_location` varchar(80) default NULL, -- linked to the CART and PROC temporary locations feature, stores the permanent shelving location
-  `onloan` date default NULL, -- defines if this item is currently checked out (1 for yes, 0 for no)
+  `onloan` date default NULL, -- defines if item is checked out (NULL for not checked out, and checkout date for checked out)
   `cn_source` varchar(10) default NULL, -- classification source used on this item (MARC21 952$2)
   `cn_sort` varchar(30) default NULL,  -- normalized form of the call number (MARC21 952$o) used for sorting
   `ccode` varchar(10) default NULL, -- authorized value for the collection code associated with this item (MARC21 952$8)
@@ -2804,6 +2807,22 @@ CREATE TABLE `fieldmapping` ( -- koha to keyword mapping
   `fieldcode` char(3) NOT NULL, -- marc field number to map to this keyword
   `subfieldcode` char(1) NOT NULL, -- marc subfield associated with the fieldcode to map to this keyword
   PRIMARY KEY  (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `transport_cost`
+--
+
+DROP TABLE IF EXISTS transport_cost;
+CREATE TABLE transport_cost (
+      frombranch varchar(10) NOT NULL,
+      tobranch varchar(10) NOT NULL,
+      cost decimal(6,2) NOT NULL,
+      disable_transfer tinyint(1) NOT NULL DEFAULT 0,
+      CHECK ( frombranch <> tobranch ), -- a dud check, mysql does not support that
+      PRIMARY KEY (frombranch, tobranch),
+      CONSTRAINT transport_cost_ibfk_1 FOREIGN KEY (frombranch) REFERENCES branches (branchcode) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT transport_cost_ibfk_2 FOREIGN KEY (tobranch) REFERENCES branches (`branchcode`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --

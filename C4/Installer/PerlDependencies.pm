@@ -249,6 +249,11 @@ our $PERL_DEPS = {
         'required' => '0',
         'min_ver'  => '0.03'
     },
+    'Cache::Memcached::Fast' => {
+        'usage'    => 'Caching',
+        'required' => '0',
+        'min_ver'  => '0.17'
+    },
     'CHI' => {
         'usage'    => 'Caching',
         'required' => '0',
@@ -569,6 +574,11 @@ our $PERL_DEPS = {
         'required' => '0',
         'min_ver'  => '1.7',
     },
+    'DBD::Mock' => {
+        'usage'    => 'Core',
+        'required' => '0',
+        'min_ver'  => '1.39'
+    },
     'Test::MockModule' => {
         'usage'    => 'Core',
         'required' => '0',
@@ -576,13 +586,25 @@ our $PERL_DEPS = {
     },
     'Test::Strict' => {
         'usage'    => 'Core',
-        'required' => '0.14',
+        'required' => '0',
+        'min_ver'  => '0.14',
+
+    },
+    'Test::YAML::Valid' => {
+        'usage'    => 'Core',
+        'required' => '0',
+        'min_ver'  => '0.04',
     },
     'Text::Unaccent' => {
         'usage'    => 'Core',
         'required' => '1',
         'min_ver'  => '1.08',
-    }
+    },
+    'HTML::FormatText' => {
+        'usage'    => 'Core',
+        'required' => '1',
+        'min_ver'  => '1.23',
+    },
 };
 
 1;
@@ -605,7 +627,7 @@ end of the outer hash and follow the key/value pattern used in the other depende
 =head2 Debian
 
 If you change the list of dependencies, and you use Debian, please also
-run the debian/update-control script and commit the modifed version of
+run the debian/update-control script and commit the modified version of
 debian/control into git as well. If you're not running Debian, don't
 worry about it.
 

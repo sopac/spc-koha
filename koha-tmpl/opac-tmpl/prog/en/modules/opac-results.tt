@@ -97,6 +97,12 @@ function highlightOn() {
 }
 [% END %]
 $(document).ready(function(){
+    [% IF ( OpacHighlightedWords ) %]
+        $('a.title').each(function() {
+            $(this).attr('href', $(this).attr('href') + '&query_desc=[% query_desc | url %]');
+        });
+    [% END %]
+
     [% IF ( opacbookbag ) %]$(".addtocart").show();[% END %]
 
 [% IF ( opacbookbag ) %]
@@ -203,6 +209,11 @@ $(document).ready(function(){
 
 [% IF ( query_desc ) %][% IF ( OpacHighlightedWords ) %]var query_desc = "[% query_desc |replace("'", "\'") |replace('"', '\"') |replace('\n', '\\n') |replace('\r', '\\r') %]";
         q_array = query_desc.split(" ");
+        // ensure that we don't have "" at the end of the array, which can
+        // break the highlighter
+        while (q_array.length > 0 && q_array[q_array.length-1] == "") {
+            q_array = q_array.splice(0,-1);
+        }
         highlightOn();
         $("#highlight_toggle_on" ).hide().click(function() {highlightOn() ;});
         $("#highlight_toggle_off").show().click(function() {highlightOff();});[% END %][% END %]
@@ -603,7 +614,7 @@ $(document).ready(function(){
                 </td><td>
                     <a class="p1" href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% SEARCH_RESULT.biblionumber %]">
             [% IF ( OPACLocalCoverImages ) %]<span title="[% SEARCH_RESULT.biblionumber |url %]" class="[% SEARCH_RESULT.biblionumber %]" id="local-thumbnail[% loop.count %]"></span>[% END %]
-                    [% IF ( OPACAmazonEnabled ) %][% IF ( OPACAmazonCoverImages ) %][% IF ( SEARCH_RESULT.normalized_isbn ) %]<img src="http://images.amazon.com/images/P/[% SEARCH_RESULT.normalized_isbn %].01.TZZZZZZZ.jpg" alt="" class="thumbnail" />[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %][% END %]
+                    [% IF ( OPACAmazonCoverImages ) %][% IF ( SEARCH_RESULT.normalized_isbn ) %]<img src="http://images.amazon.com/images/P/[% SEARCH_RESULT.normalized_isbn %].01.TZZZZZZZ.jpg" alt="" class="thumbnail" />[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
 
                 [% IF ( SyndeticsEnabled ) %]
                     [% IF ( SyndeticsCoverImages ) %]

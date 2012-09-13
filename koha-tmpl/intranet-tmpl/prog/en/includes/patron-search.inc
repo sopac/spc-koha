@@ -16,11 +16,12 @@
           <option value='email,emailpro,B_email,'>Email</option>
           <option value='borrowernumber'>Borrower number</option>
           <option value='phone,phonepro,B_phone,altcontactphone,mobile'>Phone number</option>
+          <option value='streettype,address,address2,city,state,zipcode,country'>Street Address</option>
       </select>
 
     <label for="orderby">Order by:</label>
     <select name="orderby" id="searchorderby">
-    <option value="surname,0">Surname</option>
+    <option value="">Surname, Firstname</option>
     <option value="cardnumber,0">Cardnumber</option>
     </select>
     <input value="Search" class="submit" type="submit" />

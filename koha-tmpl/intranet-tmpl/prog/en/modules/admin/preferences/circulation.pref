@@ -16,6 +16,7 @@ Circulation:
                   cuecat: Convert from CueCat form
                   T-prefix: Remove the first number from T-prefix style
                   libsuite8: Convert from Libsuite8 form
+                  EAN13: EAN-13 or zero-padded UPC-A from
             - scanned item barcodes.
         -
             - Sort previous checkouts on the circulation page from
@@ -170,6 +171,12 @@ Circulation:
                   itemtype: item type
             - .
         -
+            - pref: UseTransportCostMatrix
+              choices:
+                  yes: Use
+                  no: "Don't use"
+            - Transport Cost Matrix for calculating optimal holds filling between branches.
+        -
             - Use the checkout and fines rules of
             - pref: CircControl
               type: choice
@@ -213,6 +220,15 @@ Circulation:
                   yes: "Don't prevent"
                   no: "Prevent"
             - patrons from checking out an item whose rental charge would take them over the limit.
+        -
+            - pref: AgeRestrictionMarker
+            - "E.g. FSK|PEGI|Age| (No white space near |). Entry in MARC field (e.g. 521a) as defined for agerestriction in Koha to MARC mapping. Entry in MARC field like FSK 12 or PEGI 12 would mean: Borrower must be 12 years old. (Empty: Do not apply age restriction.)"
+        -
+            - pref: AgeRestrictionOverride
+              choices:
+                  yes: Allow
+                  no: "Don't allow"
+            - staff to check out an item with age restriction.
         -
             - Prevent patrons from checking out books if they have more than
             - pref: noissuescharge

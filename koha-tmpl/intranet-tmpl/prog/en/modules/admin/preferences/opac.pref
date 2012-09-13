@@ -151,17 +151,12 @@ OPAC:
             - Include the additional CSS stylesheet
             - pref: opaccolorstylesheet
               class: file
-            - to override specified settings from the default stylesheet (leave blank to disable). Enter a filename or a complete URL beginning with <code>http://</code> (if the file lives on a remote server). Please note that if you enter a filename, the file should be in the css subdirectory for each active theme and language within the Koha templates directory.
+            - to override specified settings from the default stylesheet (leave blank to disable). Enter just a filename, a full local path or a complete URL starting with <code>http://</code> (if the file lives on a remote server). Please note that if you just enter a filename, the file should be in the css subdirectory for each active theme and language within the Koha templates directory. A full local path is expected to start from your HTTP document root.
         -
             - Use the CSS stylesheet
             - pref: opaclayoutstylesheet
               class: file
-            - on all pages in the OPAC, instead of the default (leave blank to disable). Please enter filename only. The file should be in the css subdirectory for each active theme and language within the Koha templates directory.
-        -
-            - Use the remote CSS stylesheet
-            - pref: opacstylesheet
-              class: file
-            - on all pages in the OPAC, instead of the default. (This should be a complete URL, starting with <code>http://</code>.)
+            - on all pages in the OPAC, instead of the default css (used when leaving this field blank). Enter just a filename, a full local path or a complete URL starting with <code>http://</code> (if the file lives on a remote server). Please note that if you just enter a filename, the file should be in the css subdirectory for each active theme and language within the Koha templates directory. A full local path is expected to start from your HTTP document root.
         -
             - "Include the following CSS on all pages in the OPAC:"
             - pref: OPACUserCSS
@@ -204,7 +199,7 @@ OPAC:
               type: textarea
               class: code
         -
-            - 'Include a "Links" column on the "my summary" tab when a user is logged in to the OPAC, with the following HTML (leave blank to disable):'
+            - 'Include a "Links" column on the "my summary" and "my reading history" tabs when a user is logged in to the OPAC, with the following HTML (leave blank to disable):'
             - '<br />Note: The placeholders {BIBLIONUMBER}, {TITLE}, {ISBN} and {AUTHOR} will be replaced with information from the displayed record.'
             - pref: OPACMySummaryHTML
               type: textarea
@@ -364,7 +359,7 @@ OPAC:
               choices:
                   yes: "Don't allow"
                   no: Allow
-            - patrons to select their library on the OPAC.
+            - patrons to select their branch on the OPAC or show branch names with callnumbers.
         -
             - pref: SearchMyLibraryFirst
               choices:

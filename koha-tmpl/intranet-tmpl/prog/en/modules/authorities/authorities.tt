@@ -153,7 +153,7 @@ function openAuth(tagsubfieldid,authtype) {
             }      
         }
     }           
-	newin=window.open("../authorities/auth_finder.pl?authtypecode="+  authtype+ "&index="+tagsubfieldid+"&value_mainstr="+encodeURI(mainmainstring)+"&value_main="+encodeURI(mainstring), "_blank",'width=700,height=550,toolbar=false,scrollbars=yes');
+    newin=window.open("../authorities/auth_finder.pl?source=auth&authtypecode="+  authtype+ "&index="+tagsubfieldid+"&value_mainstr="+encodeURI(mainmainstring)+"&value_main="+encodeURI(mainstring), "_blank",'width=700,height=550,toolbar=false,scrollbars=yes');
 }
 
 function AddField(field,cntrepeatfield) {
@@ -584,6 +584,7 @@ function searchauthority() {
     <input type="hidden" name="repeat_field" value="" />
     <input type="hidden" name="authtypecode" value="[% authtypecode %]" />
     <input type="hidden" name="authid" value="[% authid %]" />
+    <input type="hidden" name="index" value="[% index %]" />
     <input type="hidden" value="0" id="confirm_not_duplicate" name="confirm_not_duplicate" />
 
 	<div id="toolbar">
