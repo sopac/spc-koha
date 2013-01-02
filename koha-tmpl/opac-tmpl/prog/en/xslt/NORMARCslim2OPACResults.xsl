@@ -9,7 +9,7 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   exclude-result-prefixes="marc items">
     <xsl:import href="NORMARCslimUtils.xsl"/>
-    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" />
+    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" encoding="UTF-8"/>
     <xsl:key name="item-by-status" match="items:item" use="items:status"/>
     <xsl:key name="item-by-status-and-branch" match="items:item" use="concat(items:status, ' ', items:homebranch)"/>
 
@@ -32,7 +32,7 @@
         <xsl:variable name="controlField008" select="marc:controlfield[@tag=008]"/>
         <xsl:variable name="field019b" select="marc:datafield[@tag=019]/marc:subfield[@code='b']"/>
         <xsl:variable name="typeOf008">
-        <!-- Codes with upper case first letter below are from the NORMARC standard, lower case first letter are made up. -->
+            <!-- The logic here should be exactly the same for NORMARCslim2intranetDetail.xsl, NORMARCslim2intranetResults.xsl, NORMARCslim2OPACDetail.xsl and NORMARCslim2OPACResults.xsl -->
             <xsl:choose>
                 <xsl:when test="$field019b='b' or $field019b='k' or $field019b='l' or $leader6='b'">Mon</xsl:when>
                 <xsl:when test="$field019b='e' or contains($field019b,'ec') or contains($field019b,'ed') or contains($field019b,'ee') or contains($field019b,'ef') or $leader6='g'">FV</xsl:when>
@@ -325,7 +325,7 @@
     <xsl:when test="marc:datafield[@tag=100] or marc:datafield[@tag=110] or marc:datafield[@tag=111] or marc:datafield[@tag=700] or marc:datafield[@tag=710] or marc:datafield[@tag=711]">
 
     av 
-        <xsl:for-each select="marc:datafield[@tag=100 or @tag=700]">
+        <xsl:for-each select="marc:datafield[(@tag=100 or @tag=700) and @ind1!='z']">
             <xsl:choose>
             <xsl:when test="position()=last()">
                 <xsl:call-template name="nameABCDQ"/>.
@@ -336,7 +336,7 @@
             </xsl:choose>
         </xsl:for-each>
 
-        <xsl:for-each select="marc:datafield[@tag=110 or @tag=710]">
+        <xsl:for-each select="marc:datafield[(@tag=110 or @tag=710) and @ind1!='z']">
             <xsl:choose>
             <xsl:when test="position()=last()">
                 <xsl:call-template name="nameABCDN"/>.
@@ -347,7 +347,7 @@
             </xsl:choose>
         </xsl:for-each>
 
-        <xsl:for-each select="marc:datafield[@tag=111 or @tag=711]">
+        <xsl:for-each select="marc:datafield[(@tag=111 or @tag=711) and @ind1!='z']">
             <xsl:choose>
             <xsl:when test="position()=last()">
                 <xsl:call-template name="nameACDEQ"/>.
@@ -375,19 +375,18 @@
 <xsl:if test="$DisplayOPACiconsXSLT!='0'">
     <span class="results_summary">
     <xsl:if test="$typeOf008!=''">
-        <span class="label">Type: </span>
-        
-            <xsl:choose>
-                <xsl:when test="$typeOf008='Mon'"><img src="/opac-tmpl/prog/famfamfam/silk/book.png" alt="Bok" title="Bok"/> Bok</xsl:when>
-                <xsl:when test="$typeOf008='Per'"><img src="/opac-tmpl/prog/famfamfam/silk/newspaper.png" alt="Periodika" title="Periodika"/> Periodika</xsl:when>      
-                <xsl:when test="$typeOf008='Fil'"><img src="/opac-tmpl/prog/famfamfam/silk/computer_link.png" alt="Fil" title="Fil"/> Fil</xsl:when>
-                <xsl:when test="$typeOf008='Kar'"><img src="/opac-tmpl/prog/famfamfam/silk/map.png" alt="Kart" title="Kart"/> Kart</xsl:when>
-                <xsl:when test="$typeOf008='FV'"><img src="/opac-tmpl/prog/famfamfam/silk/film.png" alt="Film og video" title="Film og video"/> Film og video</xsl:when>
-                <xsl:when test="$typeOf008='Mus'"><img src="/opac-tmpl/prog/famfamfam/silk/sound.png" alt="Musikktrykk og lydopptak" title="Musikktrykk og lydopptak"/> Musikk</xsl:when>
-                <xsl:when test="$typeOf008='gra'"> Grafisk materiale</xsl:when>
-                <xsl:when test="$typeOf008='kom'"> Kombidokumenter</xsl:when>
-                <xsl:when test="$typeOf008='trd'"> Tre-dimensjonale gjenstander</xsl:when>
-            </xsl:choose>
+        <span class="label">Materialtype: </span>
+        <xsl:choose>
+            <xsl:when test="$typeOf008='Mon'"><img src="/opac-tmpl/lib/famfamfam/BK.png" alt="Bok" title="Bok"/> Bok</xsl:when>
+            <xsl:when test="$typeOf008='Per'"><img src="/opac-tmpl/lib/famfamfam/AR.png" alt="Periodika" title="Periodika"/> Periodika</xsl:when>
+            <xsl:when test="$typeOf008='Fil'"><img src="/opac-tmpl/lib/famfamfam/CF.png" alt="Fil" title="Fil"/> Fil</xsl:when>
+            <xsl:when test="$typeOf008='Kar'"><img src="/opac-tmpl/lib/famfamfam/MP.png" alt="Kart" title="Kart"/> Kart</xsl:when>
+            <xsl:when test="$typeOf008='FV'"><img  src="/opac-tmpl/lib/famfamfam/VM.png" alt="Film og video" title="Film og video"/> Film og video</xsl:when>
+            <xsl:when test="$typeOf008='Mus'"><img src="/opac-tmpl/lib/famfamfam/PR.png" alt="Musikktrykk og lydopptak" title="Musikktrykk og lydopptak"/> Musikk</xsl:when>
+            <xsl:when test="$typeOf008='gra'"><img src="/opac-tmpl/lib/famfamfam/GR.png" alt="Grafisk materiale" title="Grafisk materiale"/> Grafisk materiale</xsl:when>
+            <xsl:when test="$typeOf008='kom'"><img src="/opac-tmpl/lib/famfamfam/MX.png" alt="Kombidokumenter" title="Kombidokumenter"/> Kombidokumenter</xsl:when>
+            <xsl:when test="$typeOf008='trd'"><img src="/opac-tmpl/lib/famfamfam/TD.png" alt="Tre-dimensjonale gjenstander" title="Tre-dimensjonale gjenstander"/> Tre-dimensjonale gjenstander</xsl:when>
+        </xsl:choose>
     </xsl:if>
     <xsl:if test="string-length(normalize-space($physicalDescription))">
         <span class="label">; Format: </span><xsl:copy-of select="$physicalDescription"></xsl:copy-of>

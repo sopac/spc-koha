@@ -314,9 +314,19 @@ sub GetBudgetSpent {
             quantityreceived > 0 AND
             datecancellationprinted IS NULL
     |);
-
 	$sth->execute($budget_id);
 	my $sum =  $sth->fetchrow_array;
+
+    $sth = $dbh->prepare(qq|
+        SELECT SUM(shipmentcost) AS sum
+        FROM aqinvoices
+        WHERE shipmentcost_budgetid = ?
+          AND closedate IS NOT NULL
+    |);
+    $sth->execute($budget_id);
+    my ($shipmentcost_sum) = $sth->fetchrow_array;
+    $sum += $shipmentcost_sum;
+
 	return $sum;
 }
 
@@ -330,9 +340,19 @@ sub GetBudgetOrdered {
             quantityreceived = 0 AND
             datecancellationprinted IS NULL
     |);
-
 	$sth->execute($budget_id);
 	my $sum =  $sth->fetchrow_array;
+
+    $sth = $dbh->prepare(qq|
+        SELECT SUM(shipmentcost) AS sum
+        FROM aqinvoices
+        WHERE shipmentcost_budgetid = ?
+          AND closedate IS NULL
+    |);
+    $sth->execute($budget_id);
+    my ($shipmentcost_sum) = $sth->fetchrow_array;
+    $sum += $shipmentcost_sum;
+
 	return $sum;
 }
 
@@ -359,19 +379,32 @@ sub GetBudgetAuthCats  {
 # -------------------------------------------------------------------
 sub GetAuthvalueDropbox {
     my ( $authcat, $default ) = @_;
+    my $branch_limit = C4::Context->userenv ? C4::Context->userenv->{"branch"} : "";
     my $dbh = C4::Context->dbh;
-    my $sth = $dbh->prepare(
-        'SELECT authorised_value,lib FROM authorised_values
-        WHERE category = ? ORDER BY lib'
-    );
-    $sth->execute( $authcat );
+
+    my $query = qq{
+        SELECT *
+        FROM authorised_values
+    };
+    $query .= qq{
+          LEFT JOIN authorised_values_branches ON ( id = av_id )
+    } if $branch_limit;
+    $query .= qq{
+        WHERE category = ?
+    };
+    $query .= " AND ( branchcode = ? OR branchcode IS NULL )" if $branch_limit;
+    $query .= " GROUP BY lib ORDER BY category, lib, lib_opac";
+    my $sth = $dbh->prepare($query);
+    $sth->execute( $authcat, $branch_limit ? $branch_limit : () );
+
+
     my $option_list = [];
     my @authorised_values = ( q{} );
-    while (my ($value, $lib) = $sth->fetchrow_array) {
+    while (my $av = $sth->fetchrow_hashref) {
         push @{$option_list}, {
-            value => $value,
-            label => $lib,
-            default => ($default eq $value),
+            value => $av->{authorised_value},
+            label => $av->{lib},
+            default => ($default eq $av->{authorised_value}),
         };
     }
 

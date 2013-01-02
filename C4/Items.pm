@@ -440,6 +440,7 @@ my %default_values_for_mod_from_marc = (
     booksellerid         => undef, 
     ccode                => undef, 
     'items.cn_source'    => undef, 
+    coded_location_qualifier => undef,
     copynumber           => undef, 
     damaged              => 0,
 #    dateaccessioned      => undef,
@@ -530,7 +531,7 @@ sub ModItem {
         $item->{'more_subfields_xml'} = _get_unlinked_subfields_xml($unlinked_item_subfields);
     };
 
-    $item->{'itemnumber'} = $itemnumber or return undef;
+    $item->{'itemnumber'} = $itemnumber or return;
 
     $item->{onloan} = undef if $item->{itemlost};
 
@@ -1277,13 +1278,14 @@ sub GetItemsInfo {
 
         # get notforloan complete status if applicable
         if ( my $code = C4::Koha::GetAuthValCode( 'items.notforloan', $data->{frameworkcode} ) ) {
-            $data->{notforloanvalue} = C4::Koha::GetAuthorisedValueByCode( $code, $data->{itemnotforloan} );
+            $data->{notforloanvalue}     = C4::Koha::GetKohaAuthorisedValueLib( $code, $data->{itemnotforloan} );
+            $data->{notforloanvalueopac} = C4::Koha::GetKohaAuthorisedValueLib( $code, $data->{itemnotforloan}, 1 );
         }
 
         # get restricted status and description if applicable
         if ( my $code = C4::Koha::GetAuthValCode( 'items.restricted', $data->{frameworkcode} ) ) {
             $data->{restricted}     = C4::Koha::GetKohaAuthorisedValueLib( $code, $data->{restricted} );
-            $data->{restrictedopac} = C4::Koha::GetKohaAuthorisedValueLib( $code, $data->{restricted}, 'opac' );
+            $data->{restrictedopac} = C4::Koha::GetKohaAuthorisedValueLib( $code, $data->{restricted}, 1 );
         }
 
         # my stack procedures
@@ -2076,6 +2078,7 @@ sub _koha_new_item {
             itemlost            = ?,
             wthdrawn            = ?,
             itemcallnumber      = ?,
+            coded_location_qualifier = ?,
             restricted          = ?,
             itemnotes           = ?,
             holdingbranch       = ?,
@@ -2117,6 +2120,7 @@ sub _koha_new_item {
             $item->{'itemlost'},
             $item->{'wthdrawn'},
             $item->{'itemcallnumber'},
+            $item->{'coded_location_qualifier'},
             $item->{'restricted'},
             $item->{'itemnotes'},
             $item->{'holdingbranch'},
@@ -2293,7 +2297,7 @@ sub _koha_delete_item {
     # delete from items table
     $sth = $dbh->prepare("DELETE FROM items WHERE itemnumber=?");
     $sth->execute($itemnum);
-    return undef;
+    return;
 }
 
 =head2 _marc_from_item_hash
@@ -2598,7 +2602,20 @@ sub PrepareItemrecordDisplay {
         $itemrecord = C4::Items::GetMarcItem( $bibnum, $itemnum );
     }
     my @loop_data;
-    my $authorised_values_sth = $dbh->prepare( "SELECT authorised_value,lib FROM authorised_values WHERE category=? ORDER BY lib" );
+
+    my $branch_limit = C4::Context->userenv ? C4::Context->userenv->{"branch"} : "";
+    my $query = qq{
+        SELECT authorised_value,lib FROM authorised_values
+    };
+    $query .= qq{
+        LEFT JOIN authorised_values_branches ON ( id = av_id )
+    } if $branch_limit;
+    $query .= qq{
+        WHERE category = ?
+    };
+    $query .= qq{ AND ( branchcode = ? OR branchcode IS NULL )} if $branch_limit;
+    $query .= qq{ ORDER BY lib};
+    my $authorised_values_sth = $dbh->prepare( $query );
     foreach my $tag ( sort keys %{$tagslib} ) {
         my $previous_tag = '';
         if ( $tag ne '' ) {
@@ -2668,7 +2685,10 @@ sub PrepareItemrecordDisplay {
                 if (   ( $tagslib->{$tag}->{$subfield}->{kohafield} eq 'items.location' )
                     && $defaultvalues
                     && $defaultvalues->{'location'} ) {
-                    my $temp = $itemrecord->field($subfield) if ($itemrecord);
+
+                    my $temp; # make perlcritic happy :)
+                    $temp = $itemrecord->field($subfield) if ($itemrecord);
+
                     unless ($temp) {
                         $defaultvalue = $defaultvalues->{location} if $defaultvalues;
                     }
@@ -2700,6 +2720,7 @@ sub PrepareItemrecordDisplay {
                                 $authorised_lib{$branchcode} = $branchname;
                             }
                         }
+                        $defaultvalue = C4::Context->userenv->{branch};
 
                         #----- itemtypes
                     } elsif ( $tagslib->{$tag}->{$subfield}->{authorised_value} eq "itemtypes" ) {
@@ -2727,7 +2748,10 @@ sub PrepareItemrecordDisplay {
 
                         #---- "true" authorised value
                     } else {
-                        $authorised_values_sth->execute( $tagslib->{$tag}->{$subfield}->{authorised_value} );
+                        $authorised_values_sth->execute(
+                            $tagslib->{$tag}->{$subfield}->{authorised_value},
+                            $branch_limit ? $branch_limit : ()
+                        );
                         push @authorised_values, ""
                           unless ( $tagslib->{$tag}->{$subfield}->{mandatory} );
                         while ( my ( $value, $lib ) = $authorised_values_sth->fetchrow_array ) {

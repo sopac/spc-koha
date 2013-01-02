@@ -66,7 +66,8 @@ my ( $template, $loggedinuser, $cookie ) = get_template_and_user(
     }
 );
 
-my $authid       = $query->param('authid');
+my $authid = $query->param('authid');
+$authid = int($authid);
 my $record = GetAuthority( $authid );
 if ( ! $record ) {
     print $query->redirect("/cgi-bin/koha/errors/404.pl"); # escape early
@@ -76,28 +77,10 @@ if ( ! $record ) {
 my $authtypecode = &GetAuthTypeCode( $authid );
 
 if ($display_hierarchy){
-  my $trees=BuildUnimarcHierarchies($authid);
-  my @trees = split /;/,$trees ;
-  push @trees,$trees unless (@trees);
-  my @loophierarchies;
-  foreach my $tree (@trees){
-    my @tree=split /,/,$tree;
-    push @tree,$tree unless (@tree);
-    my $cnt=0;
-    my @loophierarchy;
-    foreach my $element (@tree){
-      my $cell;
-      my $elementdata = GetAuthority($element);
-      push @loophierarchy, BuildUnimarcHierarchy($elementdata,"child".$cnt, $authid);
-      $cnt++;
-    }
-    push @loophierarchies, { 'loopelement' =>\@loophierarchy};
-  }
-  $template->param(
-    'displayhierarchy' => $display_hierarchy,
-    'loophierarchies' =>\@loophierarchies,
-  );
+    $template->{VARS}->{'displayhierarchy'} = $display_hierarchy;
+    $template->{VARS}->{'loophierarchies'} = GenerateHierarchy($authid);
 }
+
 my $count = CountUsage($authid);
 
 
@@ -139,7 +122,7 @@ if ($show_marc) {
         my @subfields_data;
 
 # skip UNIMARC fields <200, they are useless for a patron
-        next if C4::Context->preference('MarcFlavour') eq 'UNIMARC' && $field->tag() <200;
+        next if C4::Context->preference('marcflavour') eq 'UNIMARC' && $field->tag() <200;
 
 # if tag <10, there's no subfield, use the "@" trick
         if ( $field->tag() < 10 ) {
@@ -151,12 +134,15 @@ if ($show_marc) {
             $subfield_data{marc_tag}      = $field->tag();
             push( @subfields_data, \%subfield_data );
         }
+        elsif ( C4::Context->preference('marcflavour') eq 'MARC21' && $field->tag() eq 667 ) {
+            # tagfield 667 is a nonpublic general note in MARC21, which shouldn't be shown in the OPAC
+        }
         else {
             my @subf = $field->subfields;
 
 # loop through each subfield
             for my $i ( 0 .. $#subf ) {
-                $subf[$i][0] = "@" unless $subf[$i][0];
+                $subf[$i][0] = "@" unless defined $subf[$i][0];
                 next if ( $tagslib->{ $field->tag() }->{ $subf[$i][0] }->{hidden} );
 # skip useless subfields (for patrons)
                 next if $subf[$i][0] =~ /7|8|9/;
@@ -188,4 +174,3 @@ if ($show_marc) {
 }
 
 output_html_with_http_headers $query, $cookie, $template->output;
-

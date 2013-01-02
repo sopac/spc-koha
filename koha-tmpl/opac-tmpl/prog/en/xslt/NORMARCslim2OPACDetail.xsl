@@ -9,7 +9,7 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   exclude-result-prefixes="marc items">
     <xsl:import href="NORMARCslimUtils.xsl"/>
-    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" />
+    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" encoding="UTF-8"/>
     <xsl:template match="/">
             <xsl:apply-templates/>
     </xsl:template>
@@ -38,7 +38,8 @@
         <xsl:variable name="leader7" select="substring($leader,8,1)"/>
         <xsl:variable name="controlField008" select="marc:controlfield[@tag=008]"/>
         <xsl:variable name="field019b" select="marc:datafield[@tag=019]/marc:subfield[@code='b']"/>
-        <xsl:variable name="materialTypeCode">
+        <xsl:variable name="typeOf008">
+            <!-- The logic here should be exactly the same for NORMARCslim2intranetDetail.xsl, NORMARCslim2intranetResults.xsl, NORMARCslim2OPACDetail.xsl and NORMARCslim2OPACResults.xsl -->
             <xsl:choose>
                 <xsl:when test="$field019b='b' or $field019b='k' or $field019b='l' or $leader6='b'">Mon</xsl:when>
                 <xsl:when test="$field019b='e' or contains($field019b,'ec') or contains($field019b,'ed') or contains($field019b,'ee') or contains($field019b,'ef') or $leader6='g'">FV</xsl:when>
@@ -56,29 +57,10 @@
                 </xsl:when>
             </xsl:choose>
         </xsl:variable>
-        <xsl:variable name="materialTypeLabel">
-                        <xsl:choose>
-                <xsl:when test="$field019b='b' or $field019b='k' or $field019b='l' or $leader6='b'">Bok</xsl:when>
-                <xsl:when test="$field019b='e' or contains($field019b,'ec') or contains($field019b,'ed') or contains($field019b,'ee') or contains($field019b,'ef') or $leader6='g'">Film og video</xsl:when>
-                <xsl:when test="$field019b='c' or $field019b='d' or contains($field019b,'da') or contains($field019b,'db') or contains($field019b,'dc') or contains($field019b,'dd') or contains($field019b,'dg') or contains($field019b,'dh') or contains($field019b,'di') or contains($field019b,'dj') or contains($field019b,'dk') or $leader6='c' or $leader6='d' or $leader6='i' or $leader6='j'">Musikalier</xsl:when>
-                <xsl:when test="$field019b='a' or contains($field019b,'ab') or contains($field019b,'aj') or $leader6='e' or $leader6='f'">Kart</xsl:when>
-                <xsl:when test="$field019b='f' or $field019b='i' or contains($field019b,'ib') or contains($field019b,'ic') or contains($field019b,'fd') or contains($field019b,'ff') or contains($field019b,'fi') or $leader6='k'">Grafisk materiale</xsl:when>
-                <xsl:when test="$field019b='g' or contains($field019b,'gb') or contains($field019b,'gd') or contains($field019b,'ge') or $leader6='m'">Fil</xsl:when>
-                <xsl:when test="$leader6='o'">Kombidokument</xsl:when>
-                <xsl:when test="$field019b='h' or $leader6='r'">Tredimensjonal gjenstand</xsl:when>
-                <xsl:when test="$field019b='j' or $leader6='a'">
-                    <xsl:choose>
-                        <xsl:when test="$leader7='a' or $leader7='c' or $leader7='m' or $leader7='p'">Bok</xsl:when>
-                        <xsl:when test="$field019b='j' or $leader7='b' or $leader7='s'">Periodikum</xsl:when>
-                    </xsl:choose>
-                </xsl:when>
-            </xsl:choose>
-
-        </xsl:variable>
 
         <!-- Tittel og ansvarsopplysninger -->
         <xsl:if test="marc:datafield[@tag=245]">
-        <h1>
+        <h1 class="title">
             <xsl:for-each select="marc:datafield[@tag=245]">
                     <xsl:call-template name="subfieldSelect">
                         <xsl:with-param name="codes">a</xsl:with-param>
@@ -119,6 +101,12 @@
             </xsl:otherwise>
         </xsl:choose>
         <xsl:call-template name="nameABCDQ"/></a>
+        <xsl:if test="marc:subfield[@code=9]">
+            <a class='authlink'>
+                <xsl:attribute name="href">/cgi-bin/koha/opac-authoritiesdetail.pl?authid=<xsl:value-of select="marc:subfield[@code=9]"/></xsl:attribute>
+                <img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png"/>
+            </a>
+        </xsl:if>
         <xsl:choose>
         <xsl:when test="position()=last()"><xsl:text>.</xsl:text></xsl:when><xsl:otherwise><xsl:text>; </xsl:text></xsl:otherwise></xsl:choose>
         </xsl:for-each>
@@ -134,6 +122,12 @@
             </xsl:otherwise>
         </xsl:choose>
         <xsl:call-template name="nameABCDN"/></a>
+        <xsl:if test="marc:subfield[@code=9]">
+            <a class='authlink'>
+                <xsl:attribute name="href">/cgi-bin/koha/opac-authoritiesdetail.pl?authid=<xsl:value-of select="marc:subfield[@code=9]"/></xsl:attribute>
+                <img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png"/>
+            </a>
+        </xsl:if>
         <xsl:choose><xsl:when test="position()=last()"><xsl:text>.</xsl:text></xsl:when><xsl:otherwise><xsl:text>; </xsl:text></xsl:otherwise></xsl:choose>
         </xsl:for-each>
 
@@ -148,6 +142,12 @@
             </xsl:otherwise>
         </xsl:choose>
         <xsl:call-template name="nameACDEQ"/></a>
+        <xsl:if test="marc:subfield[@code=9]">
+            <a class='authlink'>
+                <xsl:attribute name="href">/cgi-bin/koha/opac-authoritiesdetail.pl?authid=<xsl:value-of select="marc:subfield[@code=9]"/></xsl:attribute>
+                <img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png"/>
+            </a>
+        </xsl:if>
         <xsl:choose><xsl:when test="position()=last()"><xsl:text>.</xsl:text></xsl:when><xsl:otherwise><xsl:text>; </xsl:text></xsl:otherwise></xsl:choose>
 
         </xsl:for-each>
@@ -156,10 +156,20 @@
         </xsl:choose>
 
     <xsl:if test="$DisplayOPACiconsXSLT!='0'">
-        <xsl:if test="$materialTypeCode!=''">
-        <span class="results_summary"><span class="label">Materialtype: </span>
-        <xsl:element name="img"><xsl:attribute name="src">/opac-tmpl/prog/famfamfam/<xsl:value-of select="$materialTypeCode"/>.png</xsl:attribute><xsl:attribute name="alt"></xsl:attribute></xsl:element>
-        <xsl:value-of select="$materialTypeLabel"/>
+        <xsl:if test="$typeOf008!=''">
+        <span class="results_summary">
+            <span class="label">Materialtype: </span>
+            <xsl:choose>
+                <xsl:when test="$typeOf008='Mon'"><img src="/opac-tmpl/lib/famfamfam/BK.png" alt="Bok" title="Bok"/> Bok</xsl:when>
+                <xsl:when test="$typeOf008='Per'"><img src="/opac-tmpl/lib/famfamfam/AR.png" alt="Periodika" title="Periodika"/> Periodika</xsl:when>
+                <xsl:when test="$typeOf008='Fil'"><img src="/opac-tmpl/lib/famfamfam/CF.png" alt="Fil" title="Fil"/> Fil</xsl:when>
+                <xsl:when test="$typeOf008='Kar'"><img src="/opac-tmpl/lib/famfamfam/MP.png" alt="Kart" title="Kart"/> Kart</xsl:when>
+                <xsl:when test="$typeOf008='FV'"><img  src="/opac-tmpl/lib/famfamfam/VM.png" alt="Film og video" title="Film og video"/> Film og video</xsl:when>
+                <xsl:when test="$typeOf008='Mus'"><img src="/opac-tmpl/lib/famfamfam/PR.png" alt="Musikktrykk og lydopptak" title="Musikktrykk og lydopptak"/> Musikk</xsl:when>
+                <xsl:when test="$typeOf008='gra'"><img src="/opac-tmpl/lib/famfamfam/GR.png" alt="Grafisk materiale" title="Grafisk materiale"/> Grafisk materiale</xsl:when>
+                <xsl:when test="$typeOf008='kom'"><img src="/opac-tmpl/lib/famfamfam/MX.png" alt="Kombidokumenter" title="Kombidokumenter"/> Kombidokumenter</xsl:when>
+                <xsl:when test="$typeOf008='trd'"><img src="/opac-tmpl/lib/famfamfam/TD.png" alt="Tre-dimensjonale gjenstander" title="Tre-dimensjonale gjenstander"/> Tre-dimensjonale gjenstander</xsl:when>
+            </xsl:choose>
         </span>
         </xsl:if>
     </xsl:if>
@@ -345,6 +355,12 @@
                 </xsl:with-param>
             </xsl:call-template>
             </a>
+            <xsl:if test="marc:subfield[@code=9]">
+                <a class='authlink'>
+                    <xsl:attribute name="href">/cgi-bin/koha/opac-authoritiesdetail.pl?authid=<xsl:value-of select="marc:subfield[@code=9]"/></xsl:attribute>
+                    <img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png"/>
+                </a>
+            </xsl:if>
             <xsl:choose>
             <xsl:when test="position()=last()"></xsl:when>
             <xsl:otherwise> | </xsl:otherwise>

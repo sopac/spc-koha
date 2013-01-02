@@ -47,7 +47,7 @@ BEGIN {
 # ~ then gets the LDAP entry
 # ~ and calls the memberadd if necessary
 
-sub ldapserver_error ($) {
+sub ldapserver_error {
 	return sprintf('No ldapserver "%s" defined in KOHA_CONF: ' . $ENV{KOHA_CONF}, shift);
 }
 
@@ -70,8 +70,8 @@ my %config = (
        update => defined($ldap->{update}   ) ? $ldap->{update}    : 1,  # update from LDAP to Koha database for existing user
 );
 
-sub description ($) {
-	my $result = shift or return undef;
+sub description {
+	my $result = shift or return;
 	return "LDAP error #" . $result->code
 			. ": " . $result->error_name . "\n"
 			. "# " . $result->error_text . "\n";
@@ -169,11 +169,13 @@ sub checkpw_ldap {
         return 0;   # B2, D2
     }
 	if (C4::Context->preference('ExtendedPatronAttributes') && $borrowernumber && ($config{update} ||$config{replicate})) {
-   		my @types = C4::Members::AttributeTypes::GetAttributeTypes();
-		my @attributes = grep{my $key=$_; any{$_ eq $key}@types;} keys %borrower;
         my $extended_patron_attributes;
-        @{$extended_patron_attributes} =
-          map { { code => $_, value => $borrower{$_} } } @attributes;
+        foreach my $attribute_type ( C4::Members::AttributeTypes::GetAttributeTypes() ) {
+                my $code = $attribute_type->{code};
+                if ( exists($borrower{$code}) && $borrower{$code} !~ m/^\s*$/ ) { # skip empty values
+                        push @$extended_patron_attributes, { code => $code, value => $borrower{$code} };
+                }
+        }
 		my @errors;
 		#Check before add
 		for (my $i; $i< scalar(@$extended_patron_attributes)-1;$i++) {
@@ -197,7 +199,7 @@ return(1, $cardnumber, $userid);
 # Edit KOHA_CONF so $memberhash{'xxx'} fits your ldap structure.
 # Ensure that mandatory fields are correctly filled!
 #
-sub ldap_entry_2_hash ($$) {
+sub ldap_entry_2_hash {
 	my $userldapentry = shift;
 	my %borrower = ( cardnumber => shift );
 	my %memberhash;
@@ -209,7 +211,7 @@ sub ldap_entry_2_hash ($$) {
 			hashdump("LDAP key: ",$userldapentry->{$_});
 		}
 	}
-	my $x = $userldapentry->{attrs} or return undef;
+	my $x = $userldapentry->{attrs} or return;
 	foreach (keys %$x) {
 		$memberhash{$_} = join ' ', @{$x->{$_}};	
 		$debug and print STDERR sprintf("building \$memberhash{%s} = ", $_, join(' ', @{$x->{$_}})), "\n";
@@ -242,7 +244,7 @@ sub ldap_entry_2_hash ($$) {
 	return %borrower;
 }
 
-sub exists_local($) {
+sub exists_local {
 	my $arg = shift;
 	my $dbh = C4::Context->dbh;
 	my $select = "SELECT borrowernumber,cardnumber,userid,password FROM borrowers ";
@@ -271,16 +273,16 @@ sub _do_changepassword {
 		my ($md5password, $cardnum) = $sth->fetchrow;
         ($digest eq $md5password) and return $cardnum;
 		warn "Password mismatch after update to cardnumber=$cardnum (borrowernumber=$borrowerid)";
-		return undef;
+		return;
 	}
 	die "Unexpected error after password update to userid/borrowernumber: $userid / $borrowerid.";
 }
 
-sub update_local($$$$) {
-	my   $userid   = shift             or return undef;
-	my   $digest   = md5_base64(shift) or return undef;
-	my $borrowerid = shift             or return undef;
-	my $borrower   = shift             or return undef;
+sub update_local {
+	my   $userid   = shift             or return;
+	my   $digest   = md5_base64(shift) or return;
+	my $borrowerid = shift             or return;
+	my $borrower   = shift             or return;
 	my @keys = keys %$borrower;
 	my $dbh = C4::Context->dbh;
 	my $query = "UPDATE  borrowers\nSET     " . 

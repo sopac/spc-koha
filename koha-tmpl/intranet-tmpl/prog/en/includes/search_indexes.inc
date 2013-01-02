@@ -13,6 +13,11 @@
     <option value="se">&nbsp;&nbsp;&nbsp;&nbsp; Series title</option>
     <option value="su">Subject</option>
     <option value="su,phr">&nbsp;&nbsp;&nbsp;&nbsp; Subject as phrase</option>
+    [% IF ( expanded_options ) %]
+        <option value="su-br">&nbsp;&nbsp;&nbsp;&nbsp; Subject and broader terms</option>
+        <option value="su-na">&nbsp;&nbsp;&nbsp;&nbsp; Subject and narrower terms</option>
+        <option value="su-rl">&nbsp;&nbsp;&nbsp;&nbsp; Subject and related terms</option>
+    [% END %]
     <option value="bc">Barcode</option>
     <option value="location">Shelving location</option>
     <option value="sn">Standard number</option>
@@ -21,7 +26,9 @@
     <option value="callnum">&nbsp;&nbsp;&nbsp;&nbsp; Call number</option>
     <option value="ln,rtrn">Language</option>
     <option value="nt">Notes/Comments</option>
-    <option value="curriculum">Curriculum</option>
+    [% IF (marcflavour != 'UNIMARC' ) %]
+        <option value="curriculum">Curriculum</option>
+    [% END %]
     <option value="pb">Publisher</option>
     <option value="pl">Publisher location</option>
     <option value="yr">Publication date (yyyy)</option>

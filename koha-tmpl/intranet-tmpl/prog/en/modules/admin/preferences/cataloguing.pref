@@ -96,11 +96,11 @@ Cataloging:
                   EAN13: incremental EAN-13 barcodes
                   "OFF": not generated automatically.
         -
-            - When a new item is added, should it be prefilled with last created item values?
+            - When a new item is added,
             - pref: PrefillItem
               choices:
-                  yes: the new item is prefilled with last created item values
-                  no: the new item is not prefilled with last created item values
+                  yes: the new item is prefilled with last created item values.
+                  no: the new item is not prefilled with last created item values.
         -
             - Define a list of subfields to use when prefilling items (separated by space)
             - pref: SubfieldsToUseWhenPrefill
@@ -156,4 +156,19 @@ Cataloging:
             - pref: OpacSuppressionByIPRange
               class: short
             - (Leave blank if not used. Define a range like <code>192.168.</code>.)
-
+        -
+            - pref: SeparateHoldings
+              choices:
+                  yes: Separate
+                  no: Don't separate
+            - 'items display into two tabs. First tab contains items whose'
+            - pref: SeparateHoldingsBranch
+              choices:
+                homebranch: 'home branch'
+                holdingbranch: 'holding branch'
+            - 'is the branch of user logged in. The other tab contains other items.'
+        -
+            - Don't show these
+            - pref: NotesBlacklist
+              class: multi
+            - note fields in title notes separator (OPAC record details) and in the description separator (Staff client record details). The fields should appear separated with commas and according with the Koha MARC format (eg 3.. for UNIMARC, 5.. for MARC21)

@@ -24,7 +24,7 @@ use strict;
 #use warnings; FIXME - Bug 2505
 
 use C4::Context;
-
+use C4::Branch qw(GetBranchesCount);
 use Memoize;
 use DateTime;
 use DateTime::Format::MySQL;
@@ -112,7 +112,7 @@ sub slashifyDate {
 }
 
 # FIXME.. this should be moved to a MARC-specific module
-sub subfield_is_koha_internal_p ($) {
+sub subfield_is_koha_internal_p {
     my ($subfield) = @_;
 
     # We could match on 'lib' and 'tab' (and 'mandatory', & more to come!)
@@ -471,7 +471,7 @@ sub getitemtypeimagesrc {
 	}
 }
 
-sub getitemtypeimagelocation($$) {
+sub getitemtypeimagelocation {
 	my ( $src, $image ) = @_;
 
 	return '' if ( !$image );
@@ -630,7 +630,7 @@ sub GetPrinters {
 
 =cut
 
-sub GetPrinter ($$) {
+sub GetPrinter {
     my ( $query, $printers ) = @_;    # get printer for this query from printers
     my $printer = $query->param('printer');
     my %cookie = $query->cookie('userenv');
@@ -687,19 +687,19 @@ sub getFacets {
             {
                 idx   => 'su-to',
                 label => 'Topics',
-                tags  => [ qw/ 600a 601a 602a 603a 604a 605a 606ax 610a/ ],
+                tags  => [ qw/ 600ab 601ab 602a 604at 605a 606ax 610a / ],
                 sep   => ' - ',
             },
             {
                 idx   => 'su-geo',
                 label => 'Places',
-                tags  => [ qw/ 651a / ],
+                tags  => [ qw/ 607a / ],
                 sep   => ' - ',
             },
             {
                 idx   => 'su-ut',
                 label => 'Titles',
-                tags  => [ qw/ 500a 501a 502a 503a 504a / ],
+                tags  => [ qw/ 500a 501a 503a / ],
                 sep   => ', ',
             },
             {
@@ -714,14 +714,23 @@ sub getFacets {
                 tags  => [ qw/ 225a / ],
                 sep   => ', ',
             },
-        ];
-        my $library_facet = {
-            idx   => 'branch',
-            label => 'Libraries',
-            tags  => [ qw/ 995b / ],
-            expanded => '1',
-        };
-        push @$facets, $library_facet unless C4::Context->preference("singleBranchMode");
+            ];
+
+            my $library_facet;
+            unless ( C4::Context->preference("singleBranchMode") || GetBranchesCount() == 1 ) {
+                $library_facet = {
+                    idx  => 'branch',
+                    label => 'Libraries',
+                    tags        => [ qw/ 995b / ],
+                };
+            } else {
+                $library_facet = {
+                    idx  => 'location',
+                    label => 'Location',
+                    tags        => [ qw/ 995c / ],
+                };
+            }
+            push( @$facets, $library_facet );
     }
     else {
         $facets = [
@@ -768,15 +777,22 @@ sub getFacets {
                 sep   => ', ',
             },
             ];
+
             my $library_facet;
-            $library_facet = {
-                idx   => 'branch',
-                label => 'Libraries',
-                tags  => [ qw/ 952b / ],
-                sep   => ', ',
-                expanded    => '1',
-            };
-            push @$facets, $library_facet unless C4::Context->preference("singleBranchMode");
+            unless ( C4::Context->preference("singleBranchMode") || GetBranchesCount() == 1 ) {
+                $library_facet = {
+                    idx  => 'branch',
+                    label => 'Libraries',
+                    tags        => [ qw / 952b / ],
+                };
+            } else {
+                $library_facet = {
+                    idx => 'location',
+                    label => 'Location',
+                    tags => [ qw / 952c / ],
+                };
+            }
+            push( @$facets, $library_facet );
     }
     return $facets;
 }
@@ -1020,28 +1036,50 @@ C<$opac> If set to a true value, displays OPAC descriptions rather than normal o
 =cut
 
 sub GetAuthorisedValues {
-    my ($category,$selected,$opac) = @_;
+    my ( $category, $selected, $opac ) = @_;
+    my $branch_limit = C4::Context->userenv ? C4::Context->userenv->{"branch"} : "";
     my @results;
     my $dbh      = C4::Context->dbh;
-    my $query    = "SELECT * FROM authorised_values";
-    $query .= " WHERE category = '" . $category . "'" if $category;
-    $query .= " ORDER BY category, lib, lib_opac";
+    my $query = qq{
+        SELECT *
+        FROM authorised_values
+    };
+    $query .= qq{
+          LEFT JOIN authorised_values_branches ON ( id = av_id )
+    } if $branch_limit;
+    my @where_strings;
+    my @where_args;
+    if($category) {
+        push @where_strings, "category = ?";
+        push @where_args, $category;
+    }
+    if($branch_limit) {
+        push @where_strings, "( branchcode = ? OR branchcode IS NULL )";
+        push @where_args, $branch_limit;
+    }
+    if(@where_strings > 0) {
+        $query .= " WHERE " . join(" AND ", @where_strings);
+    }
+    $query .= " GROUP BY lib ORDER BY category, lib, lib_opac";
+
     my $sth = $dbh->prepare($query);
-    $sth->execute;
+
+    $sth->execute( @where_args );
     while (my $data=$sth->fetchrow_hashref) {
-        if ( (defined($selected)) && ($selected eq $data->{'authorised_value'}) ) {
-            $data->{'selected'} = 1;
+        if ( defined $selected and $selected eq $data->{authorised_value} ) {
+            $data->{selected} = 1;
         }
         else {
-            $data->{'selected'} = 0;
+            $data->{selected} = 0;
         }
-        if ($opac && $data->{'lib_opac'}) {
-            $data->{'lib'} = $data->{'lib_opac'};
+
+        if ($opac && $data->{lib_opac}) {
+            $data->{lib} = $data->{lib_opac};
         }
         push @results, $data;
     }
-    #my $data = $sth->fetchall_arrayref({});
-    return \@results; #$data;
+    $sth->finish;
+    return \@results;
 }
 
 =head2 GetAuthorisedValueCategories
@@ -1074,13 +1112,14 @@ by the passed category and code
 =cut
 
 sub GetAuthorisedValueByCode {
-    my ( $category, $authvalcode ) = @_;
+    my ( $category, $authvalcode, $opac ) = @_;
 
+    my $field = $opac ? 'lib_opac' : 'lib';
     my $dbh = C4::Context->dbh;
-    my $sth = $dbh->prepare("SELECT lib FROM authorised_values WHERE category=? AND authorised_value =?");
+    my $sth = $dbh->prepare("SELECT $field FROM authorised_values WHERE category=? AND authorised_value =?");
     $sth->execute( $category, $authvalcode );
     while ( my $data = $sth->fetchrow_hashref ) {
-        return $data->{'lib'};
+        return $data->{ $field };
     }
 }
 
@@ -1110,7 +1149,7 @@ sub GetKohaAuthorisedValues {
    	}
    	return \%values;
   } else {
-  	return undef;
+	return;
   }
 }
 
@@ -1141,7 +1180,7 @@ sub GetKohaAuthorisedValuesFromField {
    	}
    	return \%values;
   } else {
-  	return undef;
+	return;
   }
 }
 
@@ -1243,7 +1282,7 @@ sub GetNormalizedISBN {
         $isbn =~ s/(.*)( \| )(.*)/$1/;
         return _isbn_cleanup($isbn);
     }
-    return undef unless $record;
+    return unless $record;
 
     if ($marcflavour eq 'UNIMARC') {
         @fields = $record->field('010');
@@ -1252,7 +1291,7 @@ sub GetNormalizedISBN {
             if ($isbn) {
                 return _isbn_cleanup($isbn);
             } else {
-                return undef;
+                return;
             }
         }
     }
@@ -1263,7 +1302,7 @@ sub GetNormalizedISBN {
             if ($isbn) {
                 return _isbn_cleanup($isbn);
             } else {
-                return undef;
+                return;
             }
         }
     }
@@ -1308,7 +1347,7 @@ sub GetNormalizedOCLCNumber {
                 $oclc =~ s/\(OCoLC\)//;
                 return $oclc;
             } else {
-                return undef;
+                return;
             }
         }
     }

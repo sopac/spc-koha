@@ -97,10 +97,10 @@ CREATE TABLE `auth_types` (
 DROP TABLE IF EXISTS `authorised_values`;
 CREATE TABLE `authorised_values` ( -- stores values for authorized values categories and values
   `id` int(11) NOT NULL auto_increment, -- unique key, used to identify the authorized value
-  `category` varchar(10) NOT NULL default '', -- key used to identify the authorized value category
+  `category` varchar(16) NOT NULL default '', -- key used to identify the authorized value category
   `authorised_value` varchar(80) NOT NULL default '', -- code use to identify the authorized value
-  `lib` varchar(80) default NULL, -- authorized value description as printed in the staff client
-  `lib_opac` VARCHAR(80) default NULL, -- authorized value description as printed in the OPAC
+  `lib` varchar(200) default NULL, -- authorized value description as printed in the staff client
+  `lib_opac` varchar(200) default NULL, -- authorized value description as printed in the OPAC
   `imageurl` varchar(200) default NULL, -- authorized value URL
   PRIMARY KEY  (`id`),
   KEY `name` (`category`),
@@ -177,8 +177,8 @@ CREATE TABLE `biblioitems` ( -- information related to bibliographic records in 
   `cn_class` varchar(30) default NULL,
   `cn_item` varchar(10) default NULL,
   `cn_suffix` varchar(10) default NULL,
-  `cn_sort` varchar(30) default NULL,
-  `agerestriction` varchar(255) default NULL,
+  `cn_sort` varchar(30) default NULL, -- normalized version of the call number used for sorting
+  `agerestriction` varchar(255) default NULL, -- target audience/age restriction from the bib record (MARC21 521$a)
   `totalissues` int(10),
   `marcxml` longtext NOT NULL, -- full bibliographic MARC record in MARCXML
   PRIMARY KEY  (`biblioitemnumber`),
@@ -256,8 +256,8 @@ CREATE TABLE `borrowers` ( -- this table includes information about your patrons
   `altcontactsurname` varchar(255) default NULL, -- surname or last name of the alternate contact for the patron/borrower
   `altcontactaddress1` varchar(255) default NULL, -- the first address line for the alternate contact for the patron/borrower
   `altcontactaddress2` varchar(255) default NULL, -- the second address line for the alternate contact for the patron/borrower
-  `altcontactaddress3` varchar(255) default NULL, -- the third address line for the alternate contact for the patron/borrower
-  `altcontactstate` text default NULL, -- the city and state for the alternate contact for the patron/borrower
+  `altcontactaddress3` varchar(255) default NULL, -- the city for the alternate contact for the patron/borrower
+  `altcontactstate` text default NULL, -- the state for the alternate contact for the patron/borrower
   `altcontactzipcode` varchar(50) default NULL, -- the zipcode for the alternate contact for the patron/borrower
   `altcontactcountry` text default NULL, -- the country for the alternate contact for the patron/borrower
   `altcontactphone` varchar(50) default NULL, -- the phone number for the alternate contact for the patron/borrower
@@ -288,7 +288,7 @@ CREATE TABLE `borrower_attribute_types` ( -- definitions for custom patron field
   `staff_searchable` tinyint(1) NOT NULL default 0, -- defines if this field is searchable via the patron search in the staff client (1 for yes, 0 for no)
   `authorised_value_category` varchar(10) default NULL, -- foreign key from authorised_values that links this custom field to an authorized value category
   `display_checkout` tinyint(1) NOT NULL default 0,-- defines if this field displays in checkout screens
-  `category_code` VARCHAR(1) NULL DEFAULT NULL,-- defines a category for an attribute_type
+  `category_code` VARCHAR(10) NULL DEFAULT NULL,-- defines a category for an attribute_type
   `class` VARCHAR(255) NOT NULL DEFAULT '',-- defines a class for an attribute_type
   PRIMARY KEY  (`code`),
   KEY `auth_val_cat_idx` (`authorised_value_category`)
@@ -302,7 +302,7 @@ DROP TABLE IF EXISTS `borrower_attributes`;
 CREATE TABLE `borrower_attributes` ( -- values of custom patron fields known as extended patron attributes linked to patrons/borrowers
   `borrowernumber` int(11) NOT NULL, -- foreign key from the borrowers table, defines which patron/borrower has this attribute
   `code` varchar(10) NOT NULL, -- foreign key from the borrower_attribute_types table, defines which custom field this value was entered for
-  `attribute` varchar(64) default NULL, -- custom patron field value
+  `attribute` varchar(255) default NULL, -- custom patron field value
   `password` varchar(64) default NULL, -- password associated with this field
   KEY `borrowernumber` (`borrowernumber`),
   KEY `code_attribute` (`code`, `attribute`),
@@ -650,8 +650,8 @@ CREATE TABLE `deletedbiblioitems` ( -- information about bibliographic records t
   `cn_class` varchar(30) default NULL,
   `cn_item` varchar(10) default NULL,
   `cn_suffix` varchar(10) default NULL,
-  `cn_sort` varchar(30) default NULL,
-  `agerestriction` varchar(255) default NULL,
+  `cn_sort` varchar(30) default NULL, -- normalized version of the call number used for sorting
+  `agerestriction` varchar(255) default NULL, -- target audience/age restriction from the bib record (MARC21 521$a)
   `totalissues` int(10),
   `marcxml` longtext NOT NULL, -- full bibliographic MARC record in MARCXML
   PRIMARY KEY  (`biblioitemnumber`),
@@ -727,8 +727,8 @@ CREATE TABLE `deletedborrowers` ( -- stores data related to the patrons/borrower
   `altcontactsurname` varchar(255) default NULL, -- surname or last name of the alternate contact for the patron/borrower
   `altcontactaddress1` varchar(255) default NULL, -- the first address line for the alternate contact for the patron/borrower
   `altcontactaddress2` varchar(255) default NULL, -- the second address line for the alternate contact for the patron/borrower
-  `altcontactaddress3` varchar(255) default NULL, -- the third address line for the alternate contact for the patron/borrower
-  `altcontactstate` text default NULL, -- the city and state for the alternate contact for the patron/borrower
+  `altcontactaddress3` varchar(255) default NULL, -- the city for the alternate contact for the patron/borrower
+  `altcontactstate` text default NULL, -- the state for the alternate contact for the patron/borrower
   `altcontactzipcode` varchar(50) default NULL, -- the zipcode for the alternate contact for the patron/borrower
   `altcontactcountry` text default NULL, -- the country for the alternate contact for the patron/borrower
   `altcontactphone` varchar(50) default NULL, -- the phone number for the alternate contact for the patron/borrower
@@ -762,6 +762,7 @@ CREATE TABLE `deleteditems` (
   `itemlost` tinyint(1) NOT NULL default 0, -- authorized value defining this item as lost (MARC21 952$1)
   `wthdrawn` tinyint(1) NOT NULL default 0, -- authorized value defining this item as withdrawn (MARC21 952$0)
   `itemcallnumber` varchar(255) default NULL, -- call number for this item (MARC21 952$o)
+  `coded_location_qualifier` varchar(10) default NULL, -- coded location qualifier(MARC21 952$f)
   `issues` smallint(6) default NULL, -- number of times this item has been checked out
   `renewals` smallint(6) default NULL, -- number of times this item has been renewed
   `reserves` smallint(6) default NULL, -- number of times this item has been placed on hold/reserved
@@ -855,7 +856,7 @@ CREATE TABLE `import_batches` ( -- information about batches of marc records tha
   `matcher_id` int(11) default NULL, -- the id of the match rule used (matchpoints.matcher_id)
   `template_id` int(11) default NULL,
   `branchcode` varchar(10) default NULL,
-  `num_biblios` int(11) NOT NULL default 0, -- number of bib records in the file
+  `num_records` int(11) NOT NULL default 0, -- number of records in the file
   `num_items` int(11) NOT NULL default 0, -- number of items in the file
   `upload_timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP, -- date and time the file was uploaded
   `overlay_action` enum('replace', 'create_new', 'use_template', 'ignore') NOT NULL default 'create_new', -- how to handle duplicate records
@@ -863,6 +864,7 @@ CREATE TABLE `import_batches` ( -- information about batches of marc records tha
   `item_action` enum('always_add', 'add_only_for_matches', 'add_only_for_new', 'ignore') NOT NULL default 'always_add', -- what to do with item records
   `import_status` enum('staging', 'staged', 'importing', 'imported', 'reverting', 'reverted', 'cleaned') NOT NULL default 'staging', -- the status of the imported file
   `batch_type` enum('batch', 'z3950', 'webservice') NOT NULL default 'batch', -- where this batch has come from
+  `record_type` enum('biblio', 'auth', 'holdings') NOT NULL default 'biblio', -- type of record in the batch
   `file_name` varchar(100), -- the name of the file uploaded
   `comments` mediumtext, -- any comments added when the file was uploaded
   PRIMARY KEY (`import_batch_id`),
@@ -908,6 +910,22 @@ CREATE TABLE `import_record_matches` ( -- matches found when importing a batch o
   CONSTRAINT `import_record_matches_ibfk_1` FOREIGN KEY (`import_record_id`)
              REFERENCES `import_records` (`import_record_id`) ON DELETE CASCADE ON UPDATE CASCADE,
   KEY `record_score` (`import_record_id`, `score`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `import_auths`
+--
+
+DROP TABLE IF EXISTS `import_auths`;
+CREATE TABLE `import_auths` (
+  `import_record_id` int(11) NOT NULL,
+  `matched_authid` int(11) default NULL,
+  `control_number` varchar(25) default NULL,
+  `authorized_heading` varchar(128) default NULL,
+  `original_source` varchar(25) default NULL,
+  CONSTRAINT `import_auths_ibfk_1` FOREIGN KEY (`import_record_id`)
+             REFERENCES `import_records` (`import_record_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  KEY `matched_authid` (`matched_authid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
@@ -1030,6 +1048,7 @@ CREATE TABLE `items` ( -- holdings/item information
   `itemlost` tinyint(1) NOT NULL default 0, -- authorized value defining this item as lost (MARC21 952$1)
   `wthdrawn` tinyint(1) NOT NULL default 0, -- authorized value defining this item as withdrawn (MARC21 952$0)
   `itemcallnumber` varchar(255) default NULL, -- call number for this item (MARC21 952$o)
+  `coded_location_qualifier` varchar(10) default NULL, -- coded location qualifier(MARC21 952$f)
   `issues` smallint(6) default NULL, -- number of times this item has been checked out/issued
   `renewals` smallint(6) default NULL, -- number of times this item has been renewed
   `reserves` smallint(6) default NULL, -- number of times this item has been placed on hold/reserved
@@ -1626,8 +1645,9 @@ CREATE TABLE reports_dictionary ( -- definitions (or snippets of SQL) stored for
    `date_created` datetime default NULL, -- date and time this definition was created
    `date_modified` datetime default NULL, -- date and time this definition was last modified
    `saved_sql` text, -- SQL snippet for us in reports
-   `area` int(11) default NULL, -- Koha module this definition is for (1 = Circulation, 2 = Catalog, 3 = Patrons, 4 = Acquistions, 5 = Accounts)
-   PRIMARY KEY  (`id`)
+   report_area varchar(6) DEFAULT NULL, -- Koha module this definition is for Circulation, Catalog, Patrons, Acquistions, Accounts)
+   PRIMARY KEY  (id),
+   KEY dictionary_area_idx (report_area)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
@@ -1725,7 +1745,11 @@ CREATE TABLE saved_sql ( -- saved sql reports
    `notes` text, -- the notes or description given to this report
    `cache_expiry` int NOT NULL default 300,
    `public` boolean NOT NULL default FALSE,
+    report_area varchar(6) default NULL,
+    report_group varchar(80) default NULL,
+    report_subgroup varchar(80) default NULL,
    PRIMARY KEY  (`id`),
+   KEY sql_area_group_idx (report_group, report_subgroup),
    KEY boridx (`borrowernumber`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -1826,6 +1850,7 @@ CREATE TABLE `statistics` ( -- information related to transactions (circulation 
   `itemtype` varchar(10) default NULL, -- foreign key from the itemtypes table, links transaction to a specific item type
   `borrowernumber` int(11) default NULL, -- foreign key from the borrowers table, links transaction to a specific borrower
   `associatedborrower` int(11) default NULL,
+  `ccode` varchar(10) default NULL, -- foreign key from the items table, links transaction to a specific collection code
   KEY `timeidx` (`datetime`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -1895,6 +1920,7 @@ CREATE TABLE `subscription` (
   `opacdisplaycount` VARCHAR(10) NULL,
   `graceperiod` int(11) NOT NULL default '0',
   `enddate` date default NULL,
+  `closed` INT(1) NOT NULL DEFAULT 0,
   PRIMARY KEY  (`subscriptionid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -2466,6 +2492,7 @@ CREATE TABLE `messages` ( -- circulation messages left via the patron's check ou
 
 DROP TABLE IF EXISTS `accountlines`;
 CREATE TABLE `accountlines` (
+  `accountlines_id` int(11) NOT NULL AUTO_INCREMENT,
   `borrowernumber` int(11) NOT NULL default 0,
   `accountno` smallint(6) NOT NULL default 0,
   `itemnumber` int(11) default NULL,
@@ -2481,6 +2508,7 @@ CREATE TABLE `accountlines` (
   `notify_level` int(2) NOT NULL default 0,
   `note` text NULL default NULL,
   `manager_id` int(11) NULL,
+  PRIMARY KEY (`accountlines_id`),
   KEY `acctsborridx` (`borrowernumber`),
   KEY `timeidx` (`timestamp`),
   KEY `itemnumber` (`itemnumber`),
@@ -2570,6 +2598,8 @@ CREATE TABLE `aqbasket` ( -- stores data about baskets in acquisitions
   `authorisedby` varchar(10) default NULL, -- the borrowernumber of the person who created the basket
   `booksellerinvoicenumber` mediumtext, -- appears to always be NULL
   `basketgroupid` int(11), -- links this basket to its group (aqbasketgroups.id)
+  `deliveryplace` varchar(10) default NULL, -- basket delivery place
+  `billingplace` varchar(10) default NULL, -- basket billing place
   PRIMARY KEY  (`basketno`),
   KEY `booksellerid` (`booksellerid`),
   KEY `basketgroupid` (`basketgroupid`),
@@ -2746,7 +2776,7 @@ CREATE TABLE `aqorders` ( -- information related to the basket line items
   `listprice` decimal(28,6) default NULL, -- the vendor price for this line item
   `totalamount` decimal(28,6) default NULL, -- not used? always NULL
   `datereceived` date default NULL, -- the date this order was received
-  `booksellerinvoicenumber` mediumtext, -- the invoice number this line item was received on
+  invoiceid int(11) default NULL, -- id of invoice
   `freight` decimal(28,6) default NULL, -- shipping costs (not used)
   `unitprice` decimal(28,6) default NULL, -- the actual cost entered when receiving this line item
   `quantityreceived` smallint(6) NOT NULL default 0, -- the quantity that have been received so far
@@ -2762,7 +2792,8 @@ CREATE TABLE `aqorders` ( -- information related to the basket line items
   `timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP, -- the date and time this order line was last modified
   `rrp` decimal(13,2) default NULL, -- the replacement cost for this line item
   `ecost` decimal(13,2) default NULL, -- the estimated cost for this line item
-  `gst` decimal(13,2) default NULL, -- the tax rate for this line item
+  `gstrate` decimal(6,4) default NULL, -- the tax rate for this line item
+  `discount` float(6,4) default NULL, -- the discount for this line item
   `budget_id` int(11) NOT NULL, -- the fund this order goes against (aqbudgets.budget_id)
   `budgetgroup_id` int(11) NOT NULL, -- not used? always zero
   `budgetdate` date default NULL, -- not used? always NULL
@@ -2773,12 +2804,14 @@ CREATE TABLE `aqorders` ( -- information related to the basket line items
   `uncertainprice` tinyint(1), -- was this price uncertain (1 for yes, 0 for no)
   `claims_count` int(11) default 0, -- count of claim letters generated
   `claimed_date` date default NULL, -- last date a claim was generated
+  parent_ordernumber int(11) default NULL, -- ordernumber of parent order line, or same as ordernumber if no parent
   PRIMARY KEY  (`ordernumber`),
   KEY `basketno` (`basketno`),
   KEY `biblionumber` (`biblionumber`),
   KEY `budget_id` (`budget_id`),
   CONSTRAINT `aqorders_ibfk_1` FOREIGN KEY (`basketno`) REFERENCES `aqbasket` (`basketno`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `aqorders_ibfk_2` FOREIGN KEY (`biblionumber`) REFERENCES `biblio` (`biblionumber`) ON DELETE SET NULL ON UPDATE CASCADE
+  CONSTRAINT `aqorders_ibfk_2` FOREIGN KEY (`biblionumber`) REFERENCES `biblio` (`biblionumber`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT aqorders_ibfk_3 FOREIGN KEY (invoiceid) REFERENCES aqinvoices (invoiceid) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 
@@ -2792,8 +2825,30 @@ CREATE TABLE `aqorders_items` ( -- information on items entered in the acquisiti
   `itemnumber` int(11) NOT NULL, -- the item number for this item (items.itemnumber)
   `timestamp` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP, -- the date and time this order item was last touched
   PRIMARY KEY  (`itemnumber`),
-  KEY `ordernumber` (`ordernumber`)
+  KEY `ordernumber` (`ordernumber`),
+  CONSTRAINT aqorders_items_ibfk_1 FOREIGN KEY (ordernumber) REFERENCES aqorders (ordernumber) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+--
+-- Table structure for table aqinvoices
+--
+
+DROP TABLE IF EXISTS aqinvoices;
+CREATE TABLE aqinvoices (
+  invoiceid int(11) NOT NULL AUTO_INCREMENT,    -- ID of the invoice, primary key
+  invoicenumber mediumtext NOT NULL,    -- Name of invoice
+  booksellerid int(11) NOT NULL,    -- foreign key to aqbooksellers
+  shipmentdate date default NULL,   -- date of shipment
+  billingdate date default NULL,    -- date of billing
+  closedate date default NULL,  -- invoice close date, NULL means the invoice is open
+  shipmentcost decimal(28,6) default NULL,  -- shipment cost
+  shipmentcost_budgetid int(11) default NULL,   -- foreign key to aqbudgets, link the shipment cost to a budget
+  PRIMARY KEY (invoiceid),
+  CONSTRAINT aqinvoices_fk_aqbooksellerid FOREIGN KEY (booksellerid) REFERENCES aqbooksellers (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT aqinvoices_fk_shipmentcost_budgetid FOREIGN KEY (shipmentcost_budgetid) REFERENCES aqbudgets (budget_id) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
 
 --
 -- Table structure for table `fieldmapping`
@@ -2883,6 +2938,122 @@ CREATE TABLE `quotes` (
   `text` mediumtext NOT NULL,
   `timestamp` datetime NOT NULL,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table categories_branches
+--
+
+DROP TABLE IF EXISTS categories_branches;
+CREATE TABLE categories_branches( -- association table between categories and branches
+    categorycode VARCHAR(10),
+    branchcode VARCHAR(10),
+    FOREIGN KEY (categorycode) REFERENCES categories(categorycode) ON DELETE CASCADE,
+    FOREIGN KEY (branchcode) REFERENCES branches(branchcode) ON DELETE CASCADE
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table authorised_values_branches
+--
+
+DROP TABLE IF EXISTS authorised_values_branches;
+CREATE TABLE authorised_values_branches( -- association table between authorised_values and branches
+    av_id INTEGER,
+    branchcode VARCHAR(10),
+    FOREIGN KEY (av_id) REFERENCES authorised_values(id) ON DELETE CASCADE,
+    FOREIGN KEY (branchcode) REFERENCES branches(branchcode) ON DELETE CASCADE
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+
+--
+-- Table structure for table borrower_attribute_types_branches
+--
+
+DROP TABLE IF EXISTS borrower_attribute_types_branches;
+CREATE TABLE borrower_attribute_types_branches( -- association table between borrower_attribute_types and branches
+    bat_code VARCHAR(10),
+    b_branchcode VARCHAR(10),
+    FOREIGN KEY (bat_code) REFERENCES borrower_attribute_types(code) ON DELETE CASCADE,
+    FOREIGN KEY (b_branchcode) REFERENCES branches(branchcode) ON DELETE CASCADE
+) ENGINE=INNODB DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `borrower_modifications`
+--
+
+CREATE TABLE IF NOT EXISTS `borrower_modifications` (
+  `timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `verification_token` varchar(255) NOT NULL DEFAULT '',
+  `borrowernumber` int(11) NOT NULL DEFAULT '0',
+  `cardnumber` varchar(16) DEFAULT NULL,
+  `surname` mediumtext,
+  `firstname` text,
+  `title` mediumtext,
+  `othernames` mediumtext,
+  `initials` text,
+  `streetnumber` varchar(10) DEFAULT NULL,
+  `streettype` varchar(50) DEFAULT NULL,
+  `address` mediumtext,
+  `address2` text,
+  `city` mediumtext,
+  `state` text,
+  `zipcode` varchar(25) DEFAULT NULL,
+  `country` text,
+  `email` mediumtext,
+  `phone` text,
+  `mobile` varchar(50) DEFAULT NULL,
+  `fax` mediumtext,
+  `emailpro` text,
+  `phonepro` text,
+  `B_streetnumber` varchar(10) DEFAULT NULL,
+  `B_streettype` varchar(50) DEFAULT NULL,
+  `B_address` varchar(100) DEFAULT NULL,
+  `B_address2` text,
+  `B_city` mediumtext,
+  `B_state` text,
+  `B_zipcode` varchar(25) DEFAULT NULL,
+  `B_country` text,
+  `B_email` text,
+  `B_phone` mediumtext,
+  `dateofbirth` date DEFAULT NULL,
+  `branchcode` varchar(10) DEFAULT NULL,
+  `categorycode` varchar(10) DEFAULT NULL,
+  `dateenrolled` date DEFAULT NULL,
+  `dateexpiry` date DEFAULT NULL,
+  `gonenoaddress` tinyint(1) DEFAULT NULL,
+  `lost` tinyint(1) DEFAULT NULL,
+  `debarred` date DEFAULT NULL,
+  `debarredcomment` varchar(255) DEFAULT NULL,
+  `contactname` mediumtext,
+  `contactfirstname` text,
+  `contacttitle` text,
+  `guarantorid` int(11) DEFAULT NULL,
+  `borrowernotes` mediumtext,
+  `relationship` varchar(100) DEFAULT NULL,
+  `ethnicity` varchar(50) DEFAULT NULL,
+  `ethnotes` varchar(255) DEFAULT NULL,
+  `sex` varchar(1) DEFAULT NULL,
+  `password` varchar(30) DEFAULT NULL,
+  `flags` int(11) DEFAULT NULL,
+  `userid` varchar(75) DEFAULT NULL,
+  `opacnote` mediumtext,
+  `contactnote` varchar(255) DEFAULT NULL,
+  `sort1` varchar(80) DEFAULT NULL,
+  `sort2` varchar(80) DEFAULT NULL,
+  `altcontactfirstname` varchar(255) DEFAULT NULL,
+  `altcontactsurname` varchar(255) DEFAULT NULL,
+  `altcontactaddress1` varchar(255) DEFAULT NULL,
+  `altcontactaddress2` varchar(255) DEFAULT NULL,
+  `altcontactaddress3` varchar(255) DEFAULT NULL,
+  `altcontactstate` text,
+  `altcontactzipcode` varchar(50) DEFAULT NULL,
+  `altcontactcountry` text,
+  `altcontactphone` varchar(50) DEFAULT NULL,
+  `smsalertnumber` varchar(50) DEFAULT NULL,
+  `privacy` int(11) DEFAULT NULL,
+  PRIMARY KEY (`verification_token`,`borrowernumber`),
+  KEY `verification_token` (`verification_token`),
+  KEY `borrowernumber` (`borrowernumber`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

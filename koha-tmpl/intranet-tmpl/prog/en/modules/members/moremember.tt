@@ -11,6 +11,7 @@
 [% INCLUDE 'calendar.inc' %]
 <script type="text/javascript" src="[% themelang %]/lib/jquery/plugins/jquery.tablesorter.min.js"></script>
 <script type="text/javascript" src="[% themelang %]/lib/jquery/plugins/jquery.checkboxes.min.js"></script>
+<script type="text/javascript" src="[% themelang %]/lib/jquery/plugins/jquery-ui-timepicker-addon.js"></script>
 <script type="text/JavaScript" language="JavaScript">
 //<![CDATA[
 $.tablesorter.addParser({
@@ -84,7 +85,11 @@ $(document).ready(function() {
 		}
 	});
     $("#suspend_until").datepicker({ minDate: 1 }); // require that hold suspended until date is after today
-    $("#newduedate").datepicker({ minDate: 1 }); // require that renewal date is after today
+    $("#newduedate").datetimepicker({
+        minDate: 1, // require that renewal date is after today
+        hour: 23,
+        minute: 59
+    });
  });
 function uncheck_sibling(me){
 nodename=me.getAttribute("name");
@@ -302,7 +307,7 @@ function validate1(date) {
                 [% IF ( item.value_description ) %]
                     [% item.value_description %]
                 [% ELSE %]
-                    [% item.value %]
+                    [% item.value| html_line_break %]
                 [% END %]
             </li>
         [% END %]
@@ -498,7 +503,7 @@ function validate1(date) {
             </td>
       [% END %]
       [% IF ( issueloo.return_failed ) %]
-            <td class="problem">Checkin failed</td>
+            <td class="problem">Check-in failed</td>
       [% ELSE %]
         [% IF ( issueloo.norenew_reason_on_reserve ) %]
             <td><a href="/cgi-bin/koha/reserve/request.pl?biblionumber=[% issueloo.biblionumber %]">On hold</a></td>

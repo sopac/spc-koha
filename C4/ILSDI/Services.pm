@@ -26,7 +26,7 @@ use C4::Circulation;
 use C4::Branch;
 use C4::Accounts;
 use C4::Biblio;
-use C4::Reserves qw(AddReserve CancelReserve GetReservesFromBiblionumber GetReservesFromBorrowernumber);
+use C4::Reserves qw(AddReserve CancelReserve GetReservesFromBiblionumber GetReservesFromBorrowernumber CanBookBeReserved CanItemBeReserved);
 use C4::Context;
 use C4::AuthoritiesMarc;
 use C4::ILSDI::Utility;
@@ -195,6 +195,12 @@ sub GetRecords {
         my $biblioitem = ( GetBiblioItemByBiblioNumber( $biblionumber, undef ) )[0];
         if ( not $biblioitem->{'biblionumber'} ) {
             $biblioitem->{code} = "RecordNotFound";
+        }
+
+        my $embed_items = 1;
+        my $record = GetMarcBiblio($biblionumber, $embed_items);
+        if ($record) {
+            $biblioitem->{marcxml} = $record->as_xml_record();
         }
 
         # We don't want MARC to be displayed
@@ -411,7 +417,7 @@ sub GetPatronInfo {
             # Add additional fields
             $reserve->{'item'}       = $item;
             $reserve->{'branchname'} = $branchname;
-            $reserve->{'title'}      = ( GetBiblio( $reserve->{'biblionumber'} ) )[1]->{'title'};
+            $reserve->{'title'}      = GetBiblio( $reserve->{'biblionumber'} )->{'title'};
         }
         $borrower->{'holds'}->{'hold'} = \@reserves;
     }
@@ -419,6 +425,10 @@ sub GetPatronInfo {
     # Issues management
     if ( $cgi->param('show_loans') eq "1" ) {
         my $issues = GetPendingIssues($borrowernumber);
+        foreach my $issue ( @$issues ){
+            $issue->{'issuedate'} = $issue->{'issuedate'}->strftime('%Y-%m-%d %H:%M');
+            $issue->{'date_due'} = $issue->{'date_due'}->strftime('%Y-%m-%d %H:%M');
+        }
         $borrower->{'loans'}->{'loan'} = $issues;
     }
 
@@ -597,7 +607,7 @@ sub HoldTitle {
 
     # Get the biblio record, or return an error code
     my $biblionumber = $cgi->param('bib_id');
-    my ( $count, $biblio ) = GetBiblio( $biblionumber );
+    my $biblio = GetBiblio( $biblionumber );
     return { code => 'RecordNotFound' } unless $$biblio{biblionumber};
     
     my $title = $$biblio{title};
@@ -662,7 +672,7 @@ sub HoldItem {
 
     # Get the biblio or return an error code
     my $biblionumber = $cgi->param('bib_id');
-    my ( $count, $biblio ) = GetBiblio($biblionumber);
+    my $biblio = GetBiblio($biblionumber);
     return { code => 'RecordNotFound' } unless $$biblio{biblionumber};
 
     my $title = $$biblio{title};

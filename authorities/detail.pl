@@ -106,7 +106,7 @@ sub build_tabs {
                       my @subf=$field->subfields;
                   # loop through each subfield
                       for my $i (0..$#subf) {
-                        $subf[$i][0] = "@" unless $subf[$i][0];
+                        $subf[$i][0] = "@" unless defined $subf[$i][0];
                         next
                         if (
                             $tagslib->{ $field->tag() }->{ $subf[$i][0] }->{tab}
@@ -199,27 +199,8 @@ if (not defined $record) {
 }
 
 if (C4::Context->preference("AuthDisplayHierarchy")){
-  my $trees=BuildUnimarcHierarchies($authid);
-  my @trees = split /;/,$trees ;
-  push @trees,$trees unless (@trees);
-  my @loophierarchies;
-  foreach my $tree (@trees){
-    my @tree=split /,/,$tree;
-    push @tree,$tree unless (@tree);
-    my $cnt=0;
-    my @loophierarchy;
-    foreach my $element (@tree){
-      my $elementdata = GetAuthority($element);
-      $record= $elementdata if ($authid==$element);
-      push @loophierarchy, BuildUnimarcHierarchy($elementdata,"child".$cnt, $authid);
-      $cnt++;
-    }
-    push @loophierarchies, { 'loopelement' =>\@loophierarchy};
-  }
-  $template->param(
-    'displayhierarchy' =>C4::Context->preference("AuthDisplayHierarchy"),
-    'loophierarchies' =>\@loophierarchies,
-  );
+    $template->{VARS}->{'displayhierarchy'} = C4::Context->preference("AuthDisplayHierarchy");
+    $template->{VARS}->{'loophierarchies'} = GenerateHierarchy($authid);
 }
 
 my $count = CountUsage($authid);

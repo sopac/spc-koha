@@ -10,6 +10,7 @@ use File::Path;
 use C4::Biblio;
 use C4::AuthoritiesMarc;
 use C4::Items;
+use Koha::RecordProcessor;
 
 # 
 # script that checks zebradir structure & create directories & mandatory files if needed
@@ -90,6 +91,10 @@ if ($process_zebraqueue and $do_not_clear_zebraqueue) {
     my $msg = "Cannot specify both -y and -z\n";
     $msg   .= "Please do '$0 --help' to see usage.\n";
     die $msg;
+}
+
+if ($reset) {
+    $noshadow = 1;
 }
 
 if ($noshadow) {
@@ -250,7 +255,7 @@ sub index_records {
         }
         my $record_fmt = ($as_xml) ? 'marcxml' : 'iso2709' ;
         if ($process_zebraqueue) {
-            do_indexing($record_type, 'delete', "$directory/del_$record_type", $reset, $noshadow, $record_fmt, $zebraidx_log_opt)
+            do_indexing($record_type, 'adelete', "$directory/del_$record_type", $reset, $noshadow, $record_fmt, $zebraidx_log_opt)
                 if %$records_deleted;
             do_indexing($record_type, 'update', "$directory/upd_$record_type", $reset, $noshadow, $record_fmt, $zebraidx_log_opt)
                 if $num_records_exported;
@@ -497,6 +502,9 @@ sub get_corrected_marc_record {
         fix_leader($marc);
         if ($record_type eq 'authority') {
             fix_authority_id($marc, $record_number);
+        } elsif ($record_type eq 'biblio' && C4::Context->preference('IncludeSeeFromInSearches')) {
+            my $normalizer = Koha::RecordProcessor->new( { filters => 'EmbedSeeFromHeadings' } );
+            $marc = $normalizer->process($marc);
         }
         if (C4::Context->preference("marcflavour") eq "UNIMARC") {
             fix_unimarc_100($marc);
@@ -663,7 +671,7 @@ Parameters:
                             or -s.
 
     -r                      clear Zebra index before
-                            adding records to index
+                            adding records to index. Implies -w.
 
     -d                      Temporary directory for indexing.
                             If not specified, one is automatically

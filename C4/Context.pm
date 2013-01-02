@@ -220,6 +220,18 @@ sub KOHAVERSION {
     do $cgidir."/kohaversion.pl" || die "NO $cgidir/kohaversion.pl";
     return kohaversion();
 }
+
+=head2 final_linear_version
+
+Returns the version number of the final update to run in updatedatabase.pl.
+This number is equal to the version in kohaversion.pl
+
+=cut
+
+sub final_linear_version {
+    return KOHAVERSION;
+}
+
 =head2 read_config_file
 
 Reads the specified Koha config file. 
@@ -276,7 +288,7 @@ sub memcached {
     if ($ismemcached) {
       return $memcached;
     } else {
-      return undef;
+      return;
     }
 }
 
@@ -293,7 +305,7 @@ sub db_scheme2dbi {
         if (/Postgres|Pg|PostgresSQL/) { return("Pg"); }
         if (/oracle/) { return("Oracle"); }
     }
-    return undef;         # Just in case
+    return;         # Just in case
 }
 
 sub import {
@@ -358,7 +370,7 @@ sub new {
             $conf_fname = CONFIG_FNAME;
         } else {
             warn "unable to locate Koha configuration file koha-conf.xml";
-            return undef;
+            return;
         }
     }
     
@@ -376,7 +388,7 @@ sub new {
 
     $self->{"config_file"} = $conf_fname;
     warn "read_config_file($conf_fname) returned undef" if !defined($self->{"config"});
-    return undef if !defined($self->{"config"});
+    return if !defined($self->{"config"});
 
     $self->{"dbh"} = undef;        # Database handle
     $self->{"Zconn"} = undef;    # Zebra Connections
@@ -480,10 +492,10 @@ C<C4::Config-E<gt>new> will not return it.
 
 =cut
 
-sub _common_config ($$) {
+sub _common_config {
 	my $var = shift;
 	my $term = shift;
-    return undef if !defined($context->{$term});
+    return if !defined($context->{$term});
        # Presumably $self->{$term} might be
        # undefined if the config file given to &new
        # didn't exist, and the caller didn't bother
@@ -523,12 +535,13 @@ with this method.
 # flushing the caching mechanism.
 
 my %sysprefs;
+my $use_syspref_cache = 1;
 
 sub preference {
     my $self = shift;
     my $var  = lc(shift);                          # The system preference to return
 
-    if (exists $sysprefs{$var}) {
+    if ($use_syspref_cache && exists $sysprefs{$var}) {
         return $sysprefs{$var};
     }
 
@@ -545,11 +558,40 @@ END_SQL
     return $sysprefs{$var};
 }
 
-sub boolean_preference ($) {
+sub boolean_preference {
     my $self = shift;
     my $var = shift;        # The system preference to return
     my $it = preference($self, $var);
     return defined($it)? C4::Boolean::true_p($it): undef;
+}
+
+=head2 enable_syspref_cache
+
+  C4::Context->enable_syspref_cache();
+
+Enable the in-memory syspref cache used by C4::Context. This is the
+default behavior.
+
+=cut
+
+sub enable_syspref_cache {
+    my ($self) = @_;
+    $use_syspref_cache = 1;
+}
+
+=head2 disable_syspref_cache
+
+  C4::Context->disable_syspref_cache();
+
+Disable the in-memory syspref cache used by C4::Context. This should be
+used with Plack and other persistent environments.
+
+=cut
+
+sub disable_syspref_cache {
+    my ($self) = @_;
+    $use_syspref_cache = 0;
+    $self->clear_syspref_cache();
 }
 
 =head2 clear_syspref_cache
@@ -656,6 +698,8 @@ sub Zconn {
         $context->{"Zconn"}->{$server}->destroy() if defined($context->{"Zconn"}->{$server});
 
         $context->{"Zconn"}->{$server} = &_new_Zconn($server,$async,$auth,$piggyback,$syntax);
+        $context->{ Zconn }->{ $server }->option(
+            preferredRecordSyntax => C4::Context->preference("marcflavour") );
         return $context->{"Zconn"}->{$server};
     }
 }
@@ -755,8 +799,23 @@ sub _new_dbh
     my $db_user   = $context->config("user");
     my $db_passwd = $context->config("pass");
     # MJR added or die here, as we can't work without dbh
-    my $dbh= DBI->connect("DBI:$db_driver:dbname=$db_name;host=$db_host;port=$db_port",
+    my $dbh = DBI->connect("DBI:$db_driver:dbname=$db_name;host=$db_host;port=$db_port",
     $db_user, $db_passwd, {'RaiseError' => $ENV{DEBUG}?1:0 }) or die $DBI::errstr;
+
+    # Check for the existence of a systempreference table; if we don't have this, we don't
+    # have a valid database and should not set RaiseError in order to allow the installer
+    # to run; installer will not run otherwise since we raise all db errors
+
+    eval {
+                local $dbh->{PrintError} = 0;
+                local $dbh->{RaiseError} = 1;
+                $dbh->do(qq{SELECT * FROM systempreferences WHERE 1 = 0 });
+    };
+
+    if ($@) {
+        $dbh->{RaiseError} = 0;
+    }
+
 	my $tz = $ENV{TZ};
     if ( $db_driver eq 'mysql' ) { 
         # Koha 3.0 is utf-8, so force utf8 communication between mySQL and koha, whatever the mysql default config.
@@ -1009,7 +1068,7 @@ set_userenv is called in Auth.pm
 #'
 sub set_userenv {
     my ($usernum, $userid, $usercnum, $userfirstname, $usersurname, $userbranch, $branchname, $userflags, $emailaddress, $branchprinter)= @_;
-    my $var=$context->{"activeuser"};
+    my $var=$context->{"activeuser"} || '';
     my $cell = {
         "number"     => $usernum,
         "id"         => $userid,
@@ -1027,19 +1086,19 @@ sub set_userenv {
     return $cell;
 }
 
-sub set_shelves_userenv ($$) {
-	my ($type, $shelves) = @_ or return undef;
-	my $activeuser = $context->{activeuser} or return undef;
+sub set_shelves_userenv {
+	my ($type, $shelves) = @_ or return;
+	my $activeuser = $context->{activeuser} or return;
 	$context->{userenv}->{$activeuser}->{barshelves} = $shelves if $type eq 'bar';
 	$context->{userenv}->{$activeuser}->{pubshelves} = $shelves if $type eq 'pub';
 	$context->{userenv}->{$activeuser}->{totshelves} = $shelves if $type eq 'tot';
 }
 
-sub get_shelves_userenv () {
+sub get_shelves_userenv {
 	my $active;
 	unless ($active = $context->{userenv}->{$context->{activeuser}}) {
 		$debug and warn "get_shelves_userenv cannot retrieve context->{userenv}->{context->{activeuser}}";
-		return undef;
+		return;
 	}
 	my $totshelves = $active->{totshelves} or undef;
 	my $pubshelves = $active->{pubshelves} or undef;

@@ -158,7 +158,7 @@ use CGI qw('-no_undef_params');
 my $cgi = new CGI;
 
 my ($template,$borrowernumber,$cookie);
-
+my $lang = C4::Templates::getlanguage($cgi, 'intranet');
 # decide which template to use
 my $template_name;
 my $template_type;
@@ -334,7 +334,7 @@ if ( $template_type eq 'advsearch' ) {
                       search_boxes_loop => \@search_boxes_array);
 
     # load the language limits (for search)
-    my $languages_limit_loop = getAllLanguages();
+    my $languages_limit_loop = getAllLanguages($lang);
     $template->param(search_languages_loop => $languages_limit_loop,);
 
     # Expanded search options in advanced search:
@@ -372,7 +372,7 @@ if (   C4::Context->preference('defaultSortField')
       . C4::Context->preference('defaultSortOrder');
 }
 
-@sort_by = split("\0",$params->{'sort_by'}) if $params->{'sort_by'};
+@sort_by = $cgi->param('sort_by');
 $sort_by[0] = $default_sort_by unless $sort_by[0];
 foreach my $sort (@sort_by) {
     $template->param($sort => 1) if $sort;
@@ -380,8 +380,7 @@ foreach my $sort (@sort_by) {
 $template->param('sort_by' => $sort_by[0]);
 
 # Use the servers defined, or just search our local catalog(default)
-my @servers;
-@servers = split("\0",$params->{'server'}) if $params->{'server'};
+my @servers = $cgi->param('server');
 unless (@servers) {
     #FIXME: this should be handled using Context.pm
     @servers = ("biblioserver");
@@ -389,13 +388,11 @@ unless (@servers) {
 }
 # operators include boolean and proximity operators and are used
 # to evaluate multiple operands
-my @operators;
-@operators = split("\0",$params->{'op'}) if $params->{'op'};
+my @operators = $cgi->param('op');
 
 # indexes are query qualifiers, like 'title', 'author', etc. They
 # can be single or multiple parameters separated by comma: kw,right-Truncation 
-my @indexes;
-@indexes = split("\0",$params->{'idx'});
+my @indexes = $cgi->param('idx');
 
 # if a simple index (only one)  display the index used in the top search box
 if ($indexes[0] && (!$indexes[1] || $params->{'scan'})) {
@@ -406,12 +403,10 @@ if ($indexes[0] && (!$indexes[1] || $params->{'scan'})) {
 
 
 # an operand can be a single term, a phrase, or a complete ccl query
-my @operands;
-@operands = split("\0",$params->{'q'}) if $params->{'q'};
+my @operands = $cgi->param('q');
 
 # limits are use to limit to results to a pre-defined category such as branch or language
-my @limits;
-@limits = split("\0",$params->{'limit'}) if $params->{'limit'};
+my @limits = $cgi->param('limit');
 
 if($params->{'multibranchlimit'}) {
     push @limits, '('.join( " or ", map { "branch: $_ " } @{ GetBranchesInCategory( $params->{'multibranchlimit'} ) } ).')';
@@ -477,7 +472,6 @@ my ( $error,$query,$simple_query,$query_cgi,$query_desc,$limit,$limit_cgi,$limit
 my @results;
 
 ## I. BUILD THE QUERY
-my $lang = C4::Templates::getlanguage($cgi, 'intranet');
 ( $error,$query,$simple_query,$query_cgi,$query_desc,$limit,$limit_cgi,$limit_desc,$stopwords_removed,$query_type) = buildQuery(\@operators,\@operands,\@indexes,\@limits,\@sort_by,$scan,$lang);
 
 ## parse the query_cgi string and put it into a form suitable for <input>s

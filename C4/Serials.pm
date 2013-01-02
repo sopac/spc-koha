@@ -36,6 +36,7 @@ BEGIN {
     @EXPORT = qw(
       &NewSubscription    &ModSubscription    &DelSubscription    &GetSubscriptions
       &GetSubscription    &CountSubscriptionFromBiblionumber      &GetSubscriptionsFromBiblionumber
+      &SearchSubscriptions
       &GetFullSubscriptionsFromBiblionumber   &GetFullSubscription &ModSubscriptionHistory
       &HasSubscriptionStrictlyExpired &HasSubscriptionExpired &GetExpirationDate &abouttoexpire
 
@@ -92,7 +93,13 @@ sub GetSuppliersWithLateIssues {
     FROM            subscription
     LEFT JOIN       serial ON serial.subscriptionid=subscription.subscriptionid
     LEFT JOIN aqbooksellers ON subscription.aqbooksellerid = aqbooksellers.id
-    WHERE id > 0 AND ((planneddate < now() AND serial.status=1) OR serial.STATUS = 3 OR serial.STATUS = 4) ORDER BY name|;
+    WHERE id > 0
+        AND (
+            (planneddate < now() AND serial.status=1)
+            OR serial.STATUS = 3 OR serial.STATUS = 4
+        )
+        AND subscription.closed = 0
+    ORDER BY name|;
     return $dbh->selectall_arrayref($query, { Slice => {} });
 }
 
@@ -121,6 +128,7 @@ sub GetLateIssues {
             LEFT JOIN  aqbooksellers ON subscription.aqbooksellerid = aqbooksellers.id
             WHERE      ((planneddate < now() AND serial.STATUS =1) OR serial.STATUS = 3)
             AND        subscription.aqbooksellerid=?
+            AND        subscription.closed = 0
             ORDER BY   title
         |;
         $sth = $dbh->prepare($query);
@@ -133,6 +141,7 @@ sub GetLateIssues {
             LEFT JOIN  biblio ON biblio.biblionumber = subscription.biblionumber
             LEFT JOIN  aqbooksellers ON subscription.aqbooksellerid = aqbooksellers.id
             WHERE      ((planneddate < now() AND serial.STATUS =1) OR serial.STATUS = 3)
+            AND        subscription.closed = 0
             ORDER BY   title
         |;
         $sth = $dbh->prepare($query);
@@ -159,7 +168,7 @@ After this function, don't forget to execute it by using $sth->execute($subscrip
 
 =cut
 
-sub GetSubscriptionHistoryFromSubscriptionId() {
+sub GetSubscriptionHistoryFromSubscriptionId {
     my $dbh   = C4::Context->dbh;
     my $query = qq|
         SELECT *
@@ -179,7 +188,7 @@ $sth = $dbh->prepare($query).
 
 =cut
 
-sub GetSerialStatusFromSerialId() {
+sub GetSerialStatusFromSerialId {
     my $dbh   = C4::Context->dbh;
     my $query = qq|
         SELECT status
@@ -630,6 +639,85 @@ sub GetSubscriptions {
     }
     return @results;
 }
+
+=head2 SearchSubscriptions
+
+@results = SearchSubscriptions($args);
+$args is a hashref. Its keys can be contained: title, issn, ean, publisher, bookseller and branchcode
+
+this function gets all subscriptions which have title like $title, ISSN like $issn, EAN like $ean, publisher like $publisher, bookseller like $bookseller AND branchcode eq $branch.
+
+return:
+a table of hashref. Each hash containt the subscription.
+
+=cut
+
+sub SearchSubscriptions {
+    my ( $args ) = @_;
+
+    my $query = qq{
+        SELECT subscription.*, subscriptionhistory.*, biblio.*, biblioitems.issn
+        FROM subscription
+            LEFT JOIN subscriptionhistory USING(subscriptionid)
+            LEFT JOIN biblio ON biblio.biblionumber = subscription.biblionumber
+            LEFT JOIN biblioitems ON biblioitems.biblionumber = subscription.biblionumber
+            LEFT JOIN aqbooksellers ON subscription.aqbooksellerid = aqbooksellers.id
+    };
+    my @where_strs;
+    my @where_args;
+    if( $args->{biblionumber} ) {
+        push @where_strs, "biblio.biblionumber = ?";
+        push @where_args, $args->{biblionumber};
+    }
+    if( $args->{title} ){
+        my @words = split / /, $args->{title};
+        my (@strs, @args);
+        foreach my $word (@words) {
+            push @strs, "biblio.title LIKE ?";
+            push @args, "%$word%";
+        }
+        if (@strs) {
+            push @where_strs, '(' . join (' AND ', @strs) . ')';
+            push @where_args, @args;
+        }
+    }
+    if( $args->{issn} ){
+        push @where_strs, "biblioitems.issn LIKE ?";
+        push @where_args, "%$args->{issn}%";
+    }
+    if( $args->{ean} ){
+        push @where_strs, "biblioitems.ean LIKE ?";
+        push @where_args, "%$args->{ean}%";
+    }
+    if( $args->{publisher} ){
+        push @where_strs, "biblioitems.publishercode LIKE ?";
+        push @where_args, "%$args->{publisher}%";
+    }
+    if( $args->{bookseller} ){
+        push @where_strs, "aqbooksellers.name LIKE ?";
+        push @where_args, "%$args->{bookseller}%";
+    }
+    if( $args->{branch} ){
+        push @where_strs, "subscription.branchcode = ?";
+        push @where_args, "$args->{branch}";
+    }
+    if( defined $args->{closed} ){
+        push @where_strs, "subscription.closed = ?";
+        push @where_args, "$args->{closed}";
+    }
+    if(@where_strs){
+        $query .= " WHERE " . join(" AND ", @where_strs);
+    }
+
+    my $dbh = C4::Context->dbh;
+    my $sth = $dbh->prepare($query);
+    $sth->execute(@where_args);
+    my $results = $sth->fetchall_arrayref( {} );
+    $sth->finish;
+
+    return @$results;
+}
+
 
 =head2 GetSerials
 
@@ -1110,7 +1198,7 @@ $nextexepected = {
 
 =cut
 
-sub GetNextExpected($) {
+sub GetNextExpected {
     my ($subscriptionid) = @_;
     my $dbh              = C4::Context->dbh;
     my $sth              = $dbh->prepare('SELECT serialid, planneddate FROM serial WHERE subscriptionid=? AND status=?');
@@ -1145,7 +1233,7 @@ returns 0
 
 =cut
 
-sub ModNextExpected($$) {
+sub ModNextExpected {
     my ( $subscriptionid, $date ) = @_;
     my $dbh = C4::Context->dbh;
 
@@ -1303,7 +1391,7 @@ sub NewSubscription {
     logaction( "SERIAL", "ADD", $subscriptionid, "" ) if C4::Context->preference("SubscriptionLog");
 
     #set serial flag on biblio if not already set.
-    my ( $null, ($bib) ) = GetBiblio($biblionumber);
+    my $bib = GetBiblio($biblionumber);
     if ( !$bib->{'serial'} ) {
         my $record = GetMarcBiblio($biblionumber);
         my ( $tag, $subf ) = GetMarcFromKohaField( 'biblio.serial', $bib->{'frameworkcode'} );
@@ -2226,7 +2314,7 @@ Return 0 if periodicity==0
 
 =cut
 
-sub GetNextDate(@) {
+sub GetNextDate {
     my ( $planneddate, $subscription ) = @_;
     my @irreg = split( /\,/, $subscription->{irregularity} );
 
@@ -2394,6 +2482,54 @@ sub is_barcode_in_use {
     );
 
     return @{$occurences};
+}
+
+=head2 CloseSubscription
+Close a subscription given a subscriptionid
+=cut
+sub CloseSubscription {
+    my ( $subscriptionid ) = @_;
+    return unless $subscriptionid;
+    my $dbh = C4::Context->dbh;
+    my $sth = $dbh->prepare( qq{
+        UPDATE subscription
+        SET closed = 1
+        WHERE subscriptionid = ?
+    } );
+    $sth->execute( $subscriptionid );
+
+    # Set status = missing when status = stopped
+    $sth = $dbh->prepare( qq{
+        UPDATE serial
+        SET status = 8
+        WHERE subscriptionid = ?
+        AND status = 1
+    } );
+    $sth->execute( $subscriptionid );
+}
+
+=head2 ReopenSubscription
+Reopen a subscription given a subscriptionid
+=cut
+sub ReopenSubscription {
+    my ( $subscriptionid ) = @_;
+    return unless $subscriptionid;
+    my $dbh = C4::Context->dbh;
+    my $sth = $dbh->prepare( qq{
+        UPDATE subscription
+        SET closed = 0
+        WHERE subscriptionid = ?
+    } );
+    $sth->execute( $subscriptionid );
+
+    # Set status = expected when status = stopped
+    $sth = $dbh->prepare( qq{
+        UPDATE serial
+        SET status = 1
+        WHERE subscriptionid = ?
+        AND status = 8
+    } );
+    $sth->execute( $subscriptionid );
 }
 
 1;

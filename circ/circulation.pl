@@ -94,10 +94,14 @@ my ( $template, $loggedinuser, $cookie ) = get_template_and_user (
 my $branches = GetBranches();
 
 my @failedrenews = $query->param('failedrenew');    # expected to be itemnumbers 
-our %renew_failed = {};
+our %renew_failed = ();
 for (@failedrenews) { $renew_failed{$_} = 1; }
 
-my $findborrower = $query->param('findborrower');
+my @failedreturns = $query->param('failedreturn');
+our %return_failed = ();
+for (@failedreturns) { $return_failed{$_} = 1; }
+
+my $findborrower = $query->param('findborrower') || q{};
 $findborrower =~ s|,| |g;
 my $borrowernumber = $query->param('borrowernumber');
 
@@ -118,7 +122,7 @@ if (C4::Context->preference("UseTablesortForCirc")) {
     $template->param(UseTablesortForCirc => 1);
 }
 
-my $barcode        = $query->param('barcode') || '';
+my $barcode        = $query->param('barcode') || q{};
 $barcode =~  s/^\s*|\s*$//g; # remove leading/trailing whitespace
 
 $barcode = barcodedecode($barcode) if( $barcode && C4::Context->preference('itemBarcodeInputFilter'));
@@ -127,7 +131,7 @@ my $duedatespec    = $query->param('duedatespec')   || $session->param('stickydu
 my $issueconfirmed = $query->param('issueconfirmed');
 my $cancelreserve  = $query->param('cancelreserve');
 my $organisation   = $query->param('organisations');
-my $print          = $query->param('print');
+my $print          = $query->param('print') || q{};
 my $newexpiry      = $query->param('dateexpiry');
 my $debt_confirmed = $query->param('debt_confirmed') || 0; # Don't show the debt error dialog twice
 
@@ -460,8 +464,9 @@ sub build_issue_data {
         $it->{'od'} = $it->{'overdue'};
         ($it->{'author'} eq '') and $it->{'author'} = ' ';
         $it->{'renew_failed'} = $renew_failed{$it->{'itemnumber'}};
+        $it->{'return_failed'} = $return_failed{$it->{'barcode'}};
 
-        if ( $it->{'issuedate'} gt $todaysdate or $it->{'lastreneweddate'} gt $todaysdate ) {
+        if ( $it->{'issuedate'}."" gt $todaysdate or $it->{'lastreneweddate'} gt $todaysdate ) {
             (!$relatives) ? push @todaysissues, $it : push @relissues, $it;
         } else {
             (!$relatives) ? push @previousissues, $it : push @relprevissues, $it;
@@ -732,6 +737,8 @@ $template->param(
 	AllowRenewalLimitOverride => C4::Context->preference("AllowRenewalLimitOverride"),
     dateformat                => C4::Context->preference("dateformat"),
     DHTMLcalendar_dateformat  => C4::Dates->DHTMLcalendar(),
+    export_remove_fields      => C4::Context->preference("ExportRemoveFields"),
+    export_with_csv_profile   => C4::Context->preference("ExportWithCsvProfile"),
     canned_bor_notes_loop     => $canned_notes,
 );
 

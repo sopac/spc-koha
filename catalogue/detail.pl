@@ -40,6 +40,7 @@ use C4::VirtualShelves;
 use C4::XSLT;
 use C4::Images;
 use Koha::DateUtils;
+use C4::HTML5Media;
 
 # use Smart::Comments;
 
@@ -149,10 +150,14 @@ foreach my $subscription (@subscriptions) {
     my %cell;
 	my $serials_to_display;
     $cell{subscriptionid}    = $subscription->{subscriptionid};
-    $cell{subscriptionnotes} = $subscription->{notes};
+    $cell{subscriptionnotes} = $subscription->{internalnotes};
+    $cell{missinglist}       = $subscription->{missinglist};
+    $cell{librariannote}     = $subscription->{librariannote};
     $cell{branchcode}        = $subscription->{branchcode};
     $cell{branchname}        = GetBranchName($subscription->{branchcode});
     $cell{hasalert}          = $subscription->{hasalert};
+    $cell{callnumber}        = $subscription->{callnumber};
+    $cell{closed}            = $subscription->{closed};
     #get the three latest serials.
 	$serials_to_display = $subscription->{staffdisplaycount};
 	$serials_to_display = C4::Context->preference('StaffSerialIssueDisplayCount') unless $serials_to_display;
@@ -173,15 +178,20 @@ $dat->{'hiddencount'} = scalar @all_items + @hostitems - scalar @items;
 my $shelflocations = GetKohaAuthorisedValues('items.location', $fw);
 my $collections    = GetKohaAuthorisedValues('items.ccode'   , $fw);
 my $copynumbers    = GetKohaAuthorisedValues('items.copynumber', $fw);
-my (@itemloop, %itemfields);
+my (@itemloop, @otheritemloop, %itemfields);
 my $norequests = 1;
 my $authvalcode_items_itemlost = GetAuthValCode('items.itemlost',$fw);
 my $authvalcode_items_damaged  = GetAuthValCode('items.damaged', $fw);
 
 my $analytics_flag;
 my $materials_flag; # set this if the items have anything in the materials field
+my $currentbranch = C4::Context->userenv ? C4::Context->userenv->{branch} : undef;
+if ($currentbranch and C4::Context->preference('SeparateHoldings')) {
+    $template->param(SeparateHoldings => 1);
+}
+my $separatebranch = C4::Context->preference('SeparateHoldingsBranch') || 'homebranch';
 foreach my $item (@items) {
-
+    my $itembranchcode = $item->{$separatebranch};
     $item->{homebranch}        = GetBranchName($item->{homebranch});
 
     # can place holds defaults to yes
@@ -255,16 +265,27 @@ foreach my $item (@items) {
 	$item->{hosttitle} = GetBiblioData($item->{biblionumber})->{title};
     }
 	
-	#count if item is used in analytical bibliorecords
-	my $countanalytics= GetAnalyticsCount($item->{itemnumber});
-	if ($countanalytics > 0){
-		$analytics_flag=1;
-		$item->{countanalytics} = $countanalytics;
-	}
-    if ($item->{'materials'} ne ''){
+    #count if item is used in analytical bibliorecords
+    my $countanalytics= GetAnalyticsCount($item->{itemnumber});
+    if ($countanalytics > 0){
+        $analytics_flag=1;
+        $item->{countanalytics} = $countanalytics;
+    }
+
+    if (defined($item->{'materials'}) && $item->{'materials'} =~ /\S/){
 	$materials_flag = 1;
     }
-    push @itemloop, $item;
+
+    if ($currentbranch and $currentbranch ne "NO_LIBRARY_SET"
+    and C4::Context->preference('SeparateHoldings')) {
+        if ($itembranchcode and $itembranchcode eq $currentbranch) {
+            push @itemloop, $item;
+        } else {
+            push @otheritemloop, $item;
+        }
+    } else {
+        push @itemloop, $item;
+    }
 }
 
 $template->param( norequests => $norequests );
@@ -328,6 +349,7 @@ foreach ( keys %{$dat} ) {
 $template->param( AmazonTld => get_amazon_tld() ) if ( C4::Context->preference("AmazonCoverImages"));
 $template->param(
     itemloop        => \@itemloop,
+    otheritemloop   => \@otheritemloop,
     biblionumber        => $biblionumber,
     ($analyze? 'analyze':'detailview') =>1,
     subscriptions       => \@subs,
@@ -357,6 +379,12 @@ if ( C4::Context->preference("LocalCoverImages") == 1 ) {
     my @images = ListImagesForBiblio($biblionumber);
     $template->{VARS}->{localimages} = \@images;
 }
+
+# HTML5 Media
+if ( (C4::Context->preference("HTML5MediaEnabled") eq 'both') or (C4::Context->preference("HTML5MediaEnabled") eq 'staff') ) {
+    $template->param( C4::HTML5Media->gethtml5media($record));
+}
+
 
 # Get OPAC URL
 if (C4::Context->preference('OPACBaseURL')){

@@ -25,19 +25,36 @@ use C4::Output;
 use C4::Context;
 use CGI;
 
+sub _help_template_file_of_url {
+    my $url = shift;
+    my $file;
+    if ($url =~ /koha\/(.*)\.pl/) {
+        $file = $1;
+    } else {
+        $file = 'mainpage';
+    }
+    $file =~ s/[^a-zA-Z0-9_\-\/]*//g;
+    return "help/$file.tt";
+}
+
 my $query = new CGI;
 
 # find the script that called the online help using the CGI referer()
 our $refer = $query->param('url');
 $refer = $query->referer()  if !$refer || $refer eq 'undefined';
+my $from = _help_template_file_of_url($refer);
+my $htdocs = C4::Context->config('intrahtdocs');
 
-$refer =~ /koha\/(.*)\.pl/;
-my $file = $1;
-$file =~ s/[^a-zA-Z0-9_\-\/]*//g;
-my $from = "help/$file.tt";
+#
+# checking that the help file exist, otherwise, display nohelp.tt page
+#
+my ( $theme, $lang ) = C4::Templates::themelanguage( $htdocs, $from, "intranet", $query );
+unless ( -e "$htdocs/$theme/$lang/modules/$from" ) {
+    $from = "help/nohelp.tt";
+    ( $theme, $lang ) = C4::Templates::themelanguage( $htdocs, $from, "intranet", $query );
+}
 
 my $template = C4::Templates::gettemplate($from, 'intranet', $query);
 $template->param( referer => $refer );
 
 output_html_with_http_headers $query, "", $template->output;
-

@@ -7,7 +7,7 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   exclude-result-prefixes="marc items">
     <xsl:import href="MARC21slimUtils.xsl"/>
-    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" />
+    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" encoding="UTF-8"/>
     <xsl:template match="/">
             <xsl:apply-templates/>
     </xsl:template>
@@ -151,7 +151,7 @@
    <xsl:if test="$DisplayOPACiconsXSLT!='0'">
         <xsl:if test="$materialTypeCode!=''">
         <span class="results_summary type"><span class="label">Type: </span>
-        <xsl:element name="img"><xsl:attribute name="src">/opac-tmpl/prog/famfamfam/<xsl:value-of select="$materialTypeCode"/>.png</xsl:attribute><xsl:attribute name="alt">materialTypeLabel</xsl:attribute><xsl:attribute name="class">materialtype</xsl:attribute></xsl:element>
+        <xsl:element name="img"><xsl:attribute name="src">/opac-tmpl/lib/famfamfam/<xsl:value-of select="$materialTypeCode"/>.png</xsl:attribute><xsl:attribute name="alt">materialTypeLabel</xsl:attribute><xsl:attribute name="class">materialtype</xsl:attribute></xsl:element>
         <xsl:value-of select="$materialTypeLabel"/>
         </span>
         </xsl:if>
@@ -181,9 +181,9 @@
                                 </xsl:call-template>
                             </xsl:with-param>
                         </xsl:call-template>
-			</a>
-                    <xsl:text> </xsl:text><xsl:call-template name="part"/>
-            <xsl:choose><xsl:when test="position()=last()"><xsl:text>.</xsl:text></xsl:when><xsl:otherwise><xsl:text>; </xsl:text></xsl:otherwise></xsl:choose>
+            </a>
+            <xsl:call-template name="part"/>
+            <xsl:choose><xsl:when test="position()=last()"><xsl:text>. </xsl:text></xsl:when><xsl:otherwise><xsl:text> ; </xsl:text></xsl:otherwise></xsl:choose>
         </xsl:for-each>
 
         <!-- 490 Series not traced, Ind1 = 0 -->
@@ -505,6 +505,12 @@
                 </xsl:with-param>
             </xsl:call-template>
             </a>
+            <xsl:if test="marc:subfield[@code=9]">
+                <a class='authlink'>
+                    <xsl:attribute name="href">/cgi-bin/koha/opac-authoritiesdetail.pl?authid=<xsl:value-of select="marc:subfield[@code=9]"/></xsl:attribute>
+                    <img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png"/>
+                </a>
+            </xsl:if>
             <xsl:choose>
             <xsl:when test="position()=last()"></xsl:when>
             <xsl:otherwise> | </xsl:otherwise>
@@ -683,6 +689,17 @@
         </xsl:if>
         </xsl:for-each>
         </xsl:if>
+
+        <xsl:for-each select="marc:datafield[@tag=511]">
+            <span class="results_summary summary">
+                <span class="label">
+                    <xsl:if test="@ind1=1"><xsl:text>Cast: </xsl:text></xsl:if>
+                </span>
+                <xsl:call-template name="subfieldSelect">
+                    <xsl:with-param name="codes">a</xsl:with-param>
+                </xsl:call-template>
+            </span>
+        </xsl:for-each>
 
         <xsl:for-each select="marc:datafield[@tag=520]">
         <span class="results_summary summary"><span class="label">
@@ -904,14 +921,22 @@
                 </xsl:choose>
                 <!-- add relator code too between brackets-->
                 <xsl:if test="marc:subfield[@code='4' or @code='e']">
-                    <xsl:text>[</xsl:text>
+                    <span class="relatorcode">
+                    <xsl:text> [</xsl:text>
                     <xsl:choose>
                         <xsl:when test="marc:subfield[@code=4]"><xsl:value-of select="marc:subfield[@code=4]"/></xsl:when>
                         <xsl:otherwise><xsl:value-of select="marc:subfield[@code='e']"/></xsl:otherwise>
                     </xsl:choose>
                     <xsl:text>]</xsl:text>
+                    </span>
                 </xsl:if>
             </a>
+            <xsl:if test="marc:subfield[@code=9]">
+                <a class='authlink'>
+                    <xsl:attribute name="href">/cgi-bin/koha/opac-authoritiesdetail.pl?authid=<xsl:value-of select="marc:subfield[@code=9]"/></xsl:attribute>
+                    <img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png"/>
+                </a>
+            </xsl:if>
         </xsl:for-each>
         <xsl:text>.</xsl:text>
     </xsl:template>

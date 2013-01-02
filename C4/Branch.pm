@@ -46,6 +46,7 @@ BEGIN {
 		&DelBranchCategory
 	        &CheckCategoryUnique
 		&mybranch
+		&GetBranchesCount
 	);
 	@EXPORT_OK = qw( &onlymine &mybranch get_branch_code_from_name );
 }
@@ -154,16 +155,17 @@ sub mybranch {
     return C4::Context->userenv->{branch} || '';
 }
 
-sub GetBranchesLoop (;$$) {  # since this is what most pages want anyway
+sub GetBranchesLoop {  # since this is what most pages want anyway
     my $branch   = @_ ? shift : mybranch();     # optional first argument is branchcode of "my branch", if preselection is wanted.
     my $onlymine = @_ ? shift : onlymine();
     my $branches = GetBranches($onlymine);
     my @loop;
-    foreach ( sort { uc($branches->{$a}->{branchname}) cmp uc($branches->{$b}->{branchname}) } keys %$branches ) {
+    foreach my $branchcode ( sort { uc($branches->{$a}->{branchname}) cmp uc($branches->{$b}->{branchname}) } keys %$branches ) {
         push @loop, {
-            value => $_,
-            selected => ($_ eq $branch) ? 1 : 0, 
-            branchname => $branches->{$_}->{branchname},
+            value      => $branchcode,
+            branchcode => $branchcode,
+            selected   => ($branchcode eq $branch) ? 1 : 0,
+            branchname => $branches->{$branchcode}->{branchname},
         };
     }
     return \@loop;
@@ -372,7 +374,7 @@ the categories were already here, and minimally used.
 =cut
 
 	#TODO  manage category types.  rename possibly to 'agency domains' ? as borrowergroups are called categories.
-sub GetCategoryTypes() {
+sub GetCategoryTypes {
 	return ( 'searchdomain','properties');
 }
 
@@ -382,7 +384,7 @@ $branch = GetBranch( $query, $branches );
 
 =cut
 
-sub GetBranch ($$) {
+sub GetBranch {
     my ( $query, $branches ) = @_;    # get branch for this query from branches
     my $branch = $query->param('branch');
     my %cookie = $query->cookie('userenv');
@@ -415,7 +417,7 @@ Returns a href:  keys %$branches eq (branchcode,branchname) .
 
 =cut
 
-sub GetBranchesInCategory($) {
+sub GetBranchesInCategory {
     my ($categorycode) = @_;
 	my @branches;
 	my $dbh = C4::Context->dbh();
@@ -578,6 +580,15 @@ sub get_branch_code_from_name {
    my $sth = $dbh->prepare($query);
    $sth->execute(@branch_name);
    return $sth->fetchrow_array;
+}
+
+sub GetBranchesCount {
+    my $dbh = C4::Context->dbh();
+    my $query = "SELECT COUNT(*) AS branches_count FROM branches";
+    my $sth = $dbh->prepare( $query );
+    $sth->execute();
+    my $row = $sth->fetchrow_hashref();
+    return $row->{'branches_count'};
 }
 
 1;

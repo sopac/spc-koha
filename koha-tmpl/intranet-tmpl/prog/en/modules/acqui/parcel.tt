@@ -13,16 +13,19 @@
 
     dt_overwrite_html_sorting_localeCompare();
 
-    var rowsToCollapse = 5;
     $(document).ready(function(){
         var pendingt = $("#pendingt").dataTable($.extend(true, {}, dataTablesDefaults, {
+            "bStateSave": true,
+            "iCookieDuration": 60*60*24*1000, // 1000 days
+            "aLengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
             "aoColumnDefs": [
-                { "aTargets": [ 3, 7, 8 ], "bSortable": false, "bSearchable": false },
+                { "aTargets": [ 3, 8, 9 ], "bSortable": false, "bSearchable": false },
             ],
             "aoColumns": [
                 { "sType": "num-html" },
                 { "sType": "num-html" },
                 { "sType": "html" },
+                null,
                 null,
                 null,
                 null,
@@ -33,8 +36,11 @@
             "sPaginationType": "four_button"
         } ) );
         var receivedt = $("#receivedt").dataTable($.extend(true, {}, dataTablesDefaults, {
+            "bStateSave": true,
+            "iCookieDuration": 60*60*24*1000, // 1000 days
+            "aLengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
             "aoColumnDefs": [
-                { "aTargets": [ 3 ], "bSortable": false, "bSearchable": false },
+                { "aTargets": [ 3, -1 ], "bSortable": false, "bSearchable": false },
             ],
             "aoColumns": [
                 { "sType": "num-html" },
@@ -45,14 +51,16 @@
                 null,
                 null,
                 null,
+                null
             ],
             "sPaginationType": "four_button"
         } ) );
+/*
+    $("#pendingt").tablesorter({
+		headers: { 2: { sorter: 'articles' },3: { sorter: false },8:{sorter:false}}
+    });
+*/
 
-	rowCountPending  = $("#pendingt tbody.filterclass tr").length;
-	rowCountReceived = $("#receivedt tbody.filterclass tr").length;
-	if (rowCountPending > rowsToCollapse ) { if ( $.cookie("pendingKeepExpanded") != 1 ) { pendingCollapse(); } else { pendingExpand(); } }
-	if (rowCountReceived > rowsToCollapse ) { if ( $.cookie("receivedKeepExpanded") != 1 ) { receivedCollapse(); } else { receivedExpand(); } }
     });
 
      // Case-insensitive version of jquery's contains function
@@ -64,42 +72,6 @@
      jQuery.extend(jQuery.expr[':'], {
           containsExactly: "$(a).text() == m[3]"
      });
-
-
-    // Collapse pending items table
-    function pendingCollapse() {
-        $.cookie("pendingKeepExpanded", 0, { path: "/", expires: 9999 });
-	$("#pendingcollapserow").remove();
-    $("#pendingt tr").show();
-	$("#pendingt tbody.filterclass tr:gt(" + (rowsToCollapse-1) + ")").hide();
-	$("#pendingt").before("<p id=\"pendingcollapserow\">" + _("Only the first ")  + rowsToCollapse +  _(" items are displayed.") + "<a href=\"javascript:pendingExpand();\">" + _("Click here to show all ")  + rowCountPending + _(" items") + "<\/a>.<\/p>");
-
-    }
-
-    // Expend pending items table
-    function pendingExpand() {
-        $.cookie("pendingKeepExpanded", 1, { path: "/", expires: 9999 });
-	$("#pendingcollapserow").remove();
-	$("#pendingt tr").show();
-    $("#pendingt tbody.filterclass tr.orderfound").remove();
-	$("#pendingt").before("<p id=\"pendingcollapserow\">" + rowCountPending + _(" items are displayed.") + "<a href=\"javascript:pendingCollapse();\">" + _("Click here to show only the first ") + rowsToCollapse + _(" items") + "<\/a>.<\/p>");
-    }
-
-    // Collapse already received items table
-    function receivedCollapse() {
-        $.cookie("receivedKeepExpanded", 0, { path: "/", expires: 9999 });
-	$("#receivedcollapserow").remove();
-	$("#receivedt tbody.filterclass tr:gt(" + (rowsToCollapse-1) + ")").hide();
-	$("#receivedt").before("<p id=\"receivedcollapserow\">" + _("Only the first ") + rowsToCollapse + _(" items are displayed.") + "<a href=\"javascript:receivedExpand();\">" + _("Click here to show all ") + rowCountReceived + _(" items") + "<\/a>.<\/p>");
-    }
-
-    // Expand already received items table
-    function receivedExpand() {
-        $.cookie("receivedKeepExpanded", 1, { path: "/", expires: 9999 });
-	$("#receivedcollapserow").remove();
-	$("#receivedt tr").show();
-	$("#receivedt").before("<p id=\"receivedcollapserow\">" + _("All ") + rowCountReceived + _(" items are displayed.") + "<a href=\"javascript:receivedCollapse();\">" + _("Click here to show only the first ") + rowsToCollapse + _(" items") + "<\/a>.<\/p>");
-    }
 
 //]]>
 </script>
@@ -125,11 +97,17 @@
 [% INCLUDE 'header.inc' %]
 [% INCLUDE 'acquisitions-search.inc' %]
 
-<div id="breadcrumbs"><a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; <a href="/cgi-bin/koha/acqui/acqui-home.pl">Acquisitions</a> &rsaquo;  [% IF ( datereceived ) %]
-            Receipt summary for <i>[% name %]</i> [% IF ( invoice ) %]<i>[ [% invoice %] ]</i>[% END %] on <i>[% formatteddatereceived %]</i>
-        [% ELSE %]
-            Receive orders from [% name %]
-        [% END %]</div>
+<div id="breadcrumbs"><a href="/cgi-bin/koha/mainpage.pl">Home</a> &rsaquo; <a href="/cgi-bin/koha/acqui/acqui-home.pl">Acquisitions</a> &rsaquo;
+    [% IF ( datereceived ) %]
+        Receipt summary for <i>[% name %]</i>
+        [% IF ( invoice ) %]
+            <i>[ [% invoice %] ]</i>
+        [% END %]
+        on <i>[% formatteddatereceived %]</i>
+    [% ELSE %]
+        Receive orders from [% name %]
+    [% END %]
+</div>
 
 <div id="doc3" class="yui-t2">
 
@@ -165,10 +143,28 @@
 	[% END %]
     [% END %]
 
+    [% IF (error_cancelling_receipt) %]
+      <div class="error">
+      Cannot cancel receipt. Possible reasons :
+      <ul>
+        <li>
+          The order line you trying to cancel was created from a partial receipt
+          of another order line which is already received. Try to cancel this
+          one first and retry.
+        </li>
+        <li>
+          The order line you trying to cancel was created from a partial receipt
+          of another order line which has been deleted. Cancellation is not
+          possible.
+        </li>
+      </ul>
+      </div>
+    [% END %]
+
 <div id="acqui_receive_summary">
 <p><strong>Invoice number:</strong> [% invoice %] <strong>Received by:</strong> [% loggedinusername %] <strong>On:</strong> [% formatteddatereceived %]</p>
-	<!-- TODO: Add date picker, change rcv date. -->
 </div>
+[% UNLESS (invoiceclosedate) %]
 <div id="acqui_receive_search">
     <h3>Pending orders</h3>
 
@@ -182,19 +178,11 @@
             <th>Quantity</th>
             <th>Unit cost</th>
             <th>Order cost</th>
+            <th>Fund</th>
             <th>&nbsp;</th>
             <th>&nbsp;</th>
         </tr>
     </thead>
-		<tfoot>
-            <tr><td colspan="4" class="total">TOTAL</td>
-                <td> [% totalPquantity %] </td>
-				<td>&nbsp;</td>
-                <td>[% ordergrandtotal %]</td>
-				<td>&nbsp;</td>
-				<td>&nbsp;</td>
-            </tr>
-		</tfoot>
     <tbody class="filterclass">
         [% FOREACH loop_order IN loop_orders %]
             <tr>
@@ -221,57 +209,65 @@
                 <td>[% loop_order.quantity %]</td>
                 <td>[% loop_order.ecost %]</td>
                 <td>[% loop_order.ordertotal %]</td>
+                <td>[% loop_order.budget_name %]</td>
 				<td>
-                              <a href="orderreceive.pl?ordernumber=[% loop_order.ordernumber %]&amp;datereceived=[% invoicedatereceived %]&amp;invoice=[% invoice %]&amp;gst=[% loop_order.gst %]&amp;freight=[% loop_order.freight %]&amp;booksellerid=[% loop_order.booksellerid %]">Receive</a>
-				    
+                              <a href="orderreceive.pl?ordernumber=[% loop_order.ordernumber %]&amp;invoiceid=[% invoiceid %]">Receive</a>
 				</td>
 				<td>
-				    [% IF ( loop_order.left_holds_on_order ) %]
-                    <span class="button" title="Can't delete order, ([% loop_order.holds_on_order %]) holds are linked with this order cancel holds first">Can't delete order</span><br>
-                    [% ELSE %]
-                    <a href="javascript:confirm_delete_item([% loop_order.ordernumber %],[% loop_order.basketno %],[% loop_order.biblionumber %])" class="button">Delete order</a><br>
-                    [% END %]
-                    [% IF ( loop_order.can_del_bib ) %]
-                    <a href="javascript:confirm_delete_biblio([% loop_order.ordernumber %],[% loop_order.basketno %],[% loop_order.biblionumber %])" class="button">Delete order and catalog record</a><br>
-                    [% ELSE %]
-                    <span class="button" title="Can't delete catalog record, see constraints below">Can't delete order and catalog record</span><br>
-                    [% END %]
-                    [% IF ( loop_order.left_item ) %]
-                    <b title="Can't delete catalog record, because of [% loop_order.items %] existing item(s)" >[% loop_order.items %] item(s) left</b><br>
-                    [% END %]
-                    [% IF ( loop_order.left_biblio ) %]
-                    <b title="Can't delete catalog record, delete other orders linked to it first">[% loop_order.biblios %] order(s) left</b><br>
-                    [% END %]
-                    [% IF ( loop_order.left_subscription ) %]
-                    <b title="Can't delete catalog record, delete subscriptions first">[% loop_order.subscriptions %] subscription(s) left</b><br>
-                    [% END %]
-                    [% IF ( loop_order.left_holds ) %]
-                    <b title="Can't delete catalog record or order, cancel holds first">[% loop_order.holds %] hold(s) left</b>
-                    [% END %]
-				</td>
-            </tr>
+                        [% IF ( loop_order.left_holds_on_order ) %]
+                        <span class="button" title="Can't delete order, ([% loop_order.holds_on_order %]) holds are linked with this order cancel holds first">Can't delete order</span><br>
+                        [% ELSE %]
+                        <a href="javascript:confirm_delete_item([% loop_order.ordernumber %],[% loop_order.biblionumber %])" class="button">Delete order</a><br>
+                        [% END %]
+                        [% IF ( loop_order.can_del_bib ) %]
+                        <a href="javascript:confirm_delete_biblio([% loop_order.ordernumber %],[% loop_order.biblionumber %])" class="button">Delete order and catalog record</a><br>
+                        [% ELSE %]
+                        <span class="button" title="Can't delete catalog record, see constraints below">Can't delete order and catalog record</span><br>
+                        [% END %]
+                        [% IF ( loop_order.left_item ) %]
+                        <b title="Can't delete catalog record, because of [% loop_order.items %] existing item(s)" >[% loop_order.items %] item(s) left</b><br>
+                        [% END %]
+                        [% IF ( loop_order.left_biblio ) %]
+                        <b title="Can't delete catalog record, delete other orders linked to it first">[% loop_order.biblios %] order(s) left</b><br>
+                        [% END %]
+                        [% IF ( loop_order.left_subscription ) %]
+                        <b title="Can't delete catalog record, delete subscriptions first">[% loop_order.subscriptions %] subscription(s) left</b><br>
+                        [% END %]
+                        [% IF ( loop_order.left_holds ) %]
+                        <b title="Can't delete catalog record or order, cancel holds first">[% loop_order.holds %] hold(s) left</b>
+                        [% END %]
+                    </td>
+                </tr>
+            [% END %]
+        </tbody>
+         </table>[% ELSE %]There are no pending orders.[% END %]
+       <div id="resultnumber">
+        <!-- Row of numbers corresponding to search result pages -->
+        [% IF ( displayprev ) %]
+            <a href="parcel.pl?invoiceid=[% invoiceid %]&amp;startfrom=[% prevstartfrom %][% IF ( resultsperpage ) %]&amp;resultsperpage=[% resultsperpage %][% END %]#resultnumber">&lt;&lt; Previous</a>
         [% END %]
-    </tbody>
-     </table>[% ELSE %]There are no pending orders.[% END %]
-   <div id="resultnumber">
-	<!-- Row of numbers corresponding to search result pages -->
-	[% IF ( displayprev ) %]
-		<a href="parcel.pl?type=intra&amp;booksellerid=[% booksellerid %]&amp;startfrom=[% prevstartfrom %][% IF ( datereceived ) %]&amp;datereceived=[% datereceived %][% END %][% IF ( invoice ) %]&amp;invoice=[% invoice %][% END %][% IF ( resultsperpage ) %]&amp;resultsperpage=[% resultsperpage %][% END %]#resultnumber">&lt;&lt; Previous</a>
-	[% END %]
-	[% FOREACH number IN numbers %]
-		[% IF ( number.highlight ) %]
-		<span class="current">[% number.number %]</span>
-		[% ELSE %]
-		<a href="parcel.pl?type=intra&amp;booksellerid=[% booksellerid %]&amp;startfrom=[% number.startfrom %][% IF ( datereceived ) %]&amp;datereceived=[% datereceived %][% END %][% IF ( invoice ) %]&amp;invoice=[% invoice %][% END %][% IF ( resultsperpage ) %]&amp;resultsperpage=[% resultsperpage %][% END %]#resultnumber">[% number.number %]</a>
-		[% END %]
-	[% END %]
-	[% IF ( displaynext ) %]
-		<a href="parcel.pl?type=intra&amp;booksellerid=[% booksellerid %]&amp;startfrom=[% nextstartfrom %][% IF ( datereceived ) %]&amp;datereceived=[% datereceived %][% END %][% IF ( invoice ) %]&amp;invoice=[% invoice %][% END %][% IF ( resultsperpage ) %]&amp;resultsperpage=[% resultsperpage %][% END %]#resultnumber">Next &gt;&gt;</a>
-	[% END %]
-	</div>
-</div>
+        [% FOREACH number IN numbers %]
+            [% IF ( number.highlight ) %]
+            <span class="current">[% number.number %]</span>
+            [% ELSE %]
+            <a href="parcel.pl?invoiceid=[% invoiceid %]&amp;startfrom=[% number.startfrom %][% IF ( resultsperpage ) %]&amp;resultsperpage=[% resultsperpage %][% END %]#resultnumber">[% number.number %]</a>
+            [% END %]
+        [% END %]
+        [% IF ( displaynext ) %]
+            <a href="parcel.pl?invoiceid=[% invoiceid %]&amp;startfrom=[% nextstartfrom %][% IF ( resultsperpage ) %]&amp;resultsperpage=[% resultsperpage %][% END %]#resultnumber">Next &gt;&gt;</a>
+        [% END %]
+        </div>
+    </div>
+[% ELSE %]
+    <p>
+        Invoice is closed, so you can't receive orders anymore.
+        <a href="/cgi-bin/koha/acqui/invoice.pl?op=reopen&invoiceid=[% invoiceid %]&referer=/cgi-bin/koha/acqui/parcel.pl%3Finvoiceid=[% invoiceid %]">Reopen it</a>.
+    </p>
+[% END %]
+
 <div id="acqui_receive_receivelist">
     <h3>Already received</h3>
+
 
    [% IF ( loop_received ) %]
    <form action="/cgi-bin/koha/acqui/parcel.pl" method="get" name="orderform">
@@ -286,42 +282,27 @@
 		<th>Est cost</th>
 		<th>Actual cost</th>
 		<th>TOTAL</th>
+        <th></th>
 	    </tr>
     </thead>
     <tfoot>
-	    <tr>
-		<td colspan="4" class="total">SUBTOTAL</td>
-		<td colspan="2">&nbsp;</td>
-		<td>[% totalprice %]</td>
-		<td>[% tototal %]</td>
-	    </tr>
-	      
-	      [% IF ( totalfreight ) %]
-		    <tr>
-			<td colspan="6">&nbsp;
-		</td>
-			    <td>Shipping</td>
-		<td>[% totalfreight %]</td>
-	    	</tr> 
-	    [% END %]
-	      [% IF ( gst ) %]
-		    <tr>
-			<td colspan="6">
-		<p class="message">
-			    <b>HELP</b><br />
-		    The total at the bottom of the page should be within a few cents of the total for the invoice.
-		</p>
-		</td>
-			    <td><b>Tax rate</b></td>
-		<td>[% gst %]</td>
-	    	</tr> 
-	    [% END %]
-	    <tr>
-	    <td colspan="4" class="total">TOTAL</td>
-		<td>[% totalquantity %]</td>
-		<td colspan="2">&nbsp;</td>
-		<td>[% grandtot %]</td>
-	    </tr>
+        <tr>
+            <th colspan="7" class="total">Total tax exc.</th>
+            <th>[% total_gste %]</th>
+            <th></th>
+        </tr>
+        [% FOREACH book_foot IN book_foot_loop %]
+            <tr>
+                <th colspan="7">Total (GST [% book_foot.gstrate * 100 | format ("%.1f") %]%)</th>
+                <th>[% book_foot.value %]</th>
+                <th></th>
+            </tr>
+        [% END %]
+        <tr>
+            <th colspan="7" class="total">Total tax inc.</th>
+            <th>[% total_gsti %]</th>
+            <th></th>
+        </tr>
     </tfoot>
 	<tbody class="filterclass">
 	    [% FOREACH loop_receive IN loop_received %]
@@ -343,6 +324,22 @@
                 <td>[% loop_receive.ecost %]</td>
                 <td>[% loop_receive.unitprice %]</td>
                 <td>[% loop_receive.total %]</td>
+                <td>
+                    [% IF (loop_receive.cannot_cancel) %]
+                        [% span_title = BLOCK %]
+                            Cannot cancel receipt of this order line because it
+                            was created from a partial receipt of order line no.
+                            [% loop_receive.parent_ordernumber %], which is
+                            already received. Try cancelling this one first and
+                            retry.
+                        [% END %]
+                        <span title="[% span_title | collapse %]">
+                            Can't cancel receipt
+                        </span>
+                    [% ELSE %]
+                        <a href="/cgi-bin/koha/acqui/parcel.pl?invoiceid=[% invoiceid %]&op=cancelreceipt&ordernumber=[% loop_receive.ordernumber %]">Cancel receipt</a>
+                    [% END %]
+                </td>
             </tr>
 	    [% END %]
 	</tbody>
@@ -352,12 +349,16 @@
 </div>
 
 <!--<form action="/cgi-bin/koha/acqui/parcels.pl?booksellerid=[% booksellerid %]" method="post">-->
-<form action="parcels.pl?booksellerid=[% booksellerid %]" method="post">
-    <input type="hidden" name="booksellerid" value="[% booksellerid %]" />
-    <fieldset class="action">
-        <input type="submit" value="Finish receiving" />
-    </fieldset>
-</form>
+[% IF (invoiceclosedate) %]
+    <a href="/cgi-bin/koha/acqui/invoice.pl?invoiceid=[% invoiceid %]">View invoice</a>
+[% ELSE %]
+    <form action="/cgi-bin/koha/acqui/invoice.pl" method="get">
+        <input type="hidden" name="invoiceid" value="[% invoiceid %]" />
+        <fieldset class="action">
+            <input type="submit" value="Finish receiving" />
+        </fieldset>
+    </form>
+[% END %]
 
 </div>
 </div>
@@ -392,11 +393,9 @@
 	    </ol>
 		<fieldset class="action">
         <input type="hidden" value="search" name="op" />
-        <input type="hidden" value="[% booksellerid %]" name="booksellerid" />
-        <input type="hidden" value="[% invoice %]" name="invoice" />
-        <input type="hidden" value="[% invoicedatereceived %]" name="datereceived" />
+        <input type="hidden" value="[% invoiceid %]" name="invoiceid" />
         <input type="submit" value="Filter" />
-        <a href="/cgi-bin/koha/acqui/parcel.pl?booksellerid=[% booksellerid %]&invoice=[% invoice %]&op=new&datereceived=[% formatteddatereceived %]">Clear</a>
+        <a href="/cgi-bin/koha/acqui/parcel.pl?invoiceid=[% invoiceid %]">Clear</a>
 		</fieldset>
 
 

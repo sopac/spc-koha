@@ -6,6 +6,32 @@
 <script type="text/javascript" src="[% themelang %]/lib/jquery/plugins/jquery.dataTables.min.js"></script>
 [% INCLUDE 'datatables-strings.inc' %]
 <script type="text/javascript" src="[% themelang %]/js/datatables.js"></script>
+
+<script type="text/javascript">
+//<![CDATA[
+    function updateColumnsVisibility(visible) {
+        if ( visible ) {
+            $("table .gste, .gsti").show();
+        } else {
+            [% IF ( listincgst ) %]
+                $("table .gste").hide();
+            [% ELSE %]
+                $("table .gsti").hide();
+            [% END %]
+        }
+    }
+
+    $(document).ready(function() {
+        $("#show_all_details").click(function(){
+            updateColumnsVisibility($(this+":checked").val());
+        });
+
+        $("#show_all_details").attr('checked', false);
+        updateColumnsVisibility(false);
+    });
+//]]>
+</script>
+
 [% UNLESS ( closedate ) %]
 <script type="text/javascript">
 //<![CDATA[
@@ -149,11 +175,13 @@
                         // YUI Toolbar Functions
                         function yuiToolbar() {
                             new YAHOO.widget.Button("reopenbutton");
+                            new YAHOO.widget.Button("exportbutton");
                         }
                         //]]>
                     </script>
                         <ul id="toolbar-list" class="toolbar">
                             <li><a href="javascript:confirm_reopen([% skip_confirm_reopen %]);" class="button" id="reopenbutton">Reopen this basket</a></li>
+                            <li><a href="[% script_name %]?op=export&amp;basketno=[% basketno %]&amp;booksellerid=[% booksellerid %]" class="button" id="exportbutton">Export this basket as CSV</a></li>
                         </ul>
                 </div>
                 [% END %]
@@ -192,6 +220,8 @@
                 [% IF ( basketcontractno ) %]
                     <li><span class="label">Contract name:</span> <a href="../admin/aqcontract.pl?op=add_form&amp;contractnumber=[% basketcontractno %]&amp;booksellerid=[% booksellerid %]">[% basketcontractname %]</a></li>
                 [% END %]
+                [% IF ( deliveryplace ) %]<li><span class="label">Delivery place:</span> [% deliveryplace %]</li>[% END %]
+                [% IF ( billingplace ) %]<li><span class="label">Billing place:</span> [% billingplace %]</li>[% END %]
                 [% IF ( authorisedbyname ) %]<li><span class="label">Managed by:</span>  [% authorisedbyname %]</li>[% END %]
                 [% IF ( creationdate ) %]<li><span class="label">Opened on:</span>  [% creationdate | $KohaDates %]</li>[% END %]
                 [% IF ( closedate ) %]<li><span class="label">Closed on:</span> [% closedate | $KohaDates %]</li>[% END %]
@@ -202,25 +232,41 @@
                 [% IF ( closedate ) %]
                 <div class="yui-u">
                     <form action="/cgi-bin/koha/acqui/basketgroup.pl" method="post">
+                        <p>
+                          <label for="basketgroupid"><strong>Basket group:</strong></label>
+                          [% IF basketgroup.closed %]
+                            [% basketgroup.name %] (closed)
+                          [% ELSE %]
+                            </p>
+                            <p>
+                            <select id="basketgroupid" name="basketgroupid">
+                              <option value="new">Add new group</option>
+                              [% FOREACH bg IN basketgroups %]
+                                [% IF ( bg.default ) %]
+                                    <option value="[% bg.id %]" selected="selected">[% bg.name %]</option>
+                                [% ELSE %]
+                                  [% UNLESS bg.closed %]
+                                    <option value="[% bg.id %]">[% bg.name %]</option>
+                                  [% ELSE %]
+                                    <option value="[% bg.id %]" disabled="disabled">[% bg.name %] (closed)</option>
+                                  [% END %]
+                                [% END %]
+                              [% END %]
+                            </select>
+                          [% END %]
+                        </p>
 
-                        <p><label for="basketgroupid"><strong>Basket group:</strong></label></p>
-                        <p><select id="basketgroupid" name="basketgroupid">
-                            <option value="new">Add new group</option>
-                                                    [% FOREACH basketgroup IN basketgroups %]
-                                                        [% IF ( basketgroup.default ) %]
-                            <option value="[% basketgroup.id %]" selected="selected">[% basketgroup.name %]</option>
-                                                        [% ELSE %]
-                            <option value="[% basketgroup.id %]">[% basketgroup.name %]</option>
-                                                        [% END %]
-                                                    [% END %]
-                        </select></p>
-
-                        <p><input type="hidden" id="basketno" value="[% basketno %]" name="basketno" />
-                        <input type="hidden" value="mod_basket" name="op" />
-                        <input type="hidden" name="booksellerid" value="[% booksellerid %]" />
-                        <input type="submit" value="Change basket group" /></p>
-
+                        [% UNLESS basketgroup.closed %]
+                          <p>
+                            <input type="hidden" id="basketno" value="[% basketno %]" name="basketno" />
+                            <input type="hidden" value="mod_basket" name="op" />
+                            <input type="hidden" name="booksellerid" value="[% booksellerid %]" />
+                            <input type="submit" value="Change basket group" />
+                          </p>
+                        [% END %]
                     </form>
+                    [% IF ( basketgroupdeliveryplace ) %]<p>Basket group delivery place: [% basketgroupdeliveryplace %]</p>[% END %]
+                    [% IF ( basketgroupbillingplace ) %]<p>Basket group billing place: [% basketgroupbillingplace %]</p>[% END %]
                 </div>
                 [% END %]
             </div>
@@ -229,16 +275,25 @@
 
         [% UNLESS ( delete_confirm ) %]
         <div id="acqui_basket_content" class="yui-g">
-        <h2>Order Details</h2>
         [% IF ( books_loop ) %]
+        <h2>Orders</h2>
+        <label for="show_all_details">
+            <input type="checkbox" style="vertical-align: middle;" id="show_all_details" />
+            Show all details
+        </label>
             <table id="orders">
                 <thead>
                     <tr>
                         <th>Order</th>
-                        <th>RRP</th>
-                        <th>Est.</th>
+                        <th class="gste">RRP tax exc.</th>
+                        <th class="gste">ecost tax exc.</th>
+                        <th class="gsti">RRP tax inc.</th>
+                        <th class="gsti">ecost tax inc.</th>
                         <th>Qty.</th>
-                        <th>Total</th>
+                        <th class="gste">Total tax exc. ([% currency %])</th>
+                        <th class="gsti">Total tax inc. ([% currency %])</th>
+                        <th>GST %</th>
+                        <th>GST</th>
                         <th>Fund</th>
                         [% IF ( active ) %]
                             [% UNLESS ( closedate ) %]
@@ -249,45 +304,40 @@
                     </tr>
                 </thead>
                 <tfoot>
-                [% IF ( GST ) %]
-                <tr>
-                    <th scope="row">Total tax exc.</th>
-                    <td>[% total_rrp_gste %]</td>
-                    <td>&nbsp;</td>
-                    <td>[% qty_total %]</td>
-                    <td>[% total_est_gste %]</td>
+                [% FOREACH foot_loo IN book_foot_loop %]
+                    <tr>
+                        <th>Total (GST [% foot_loo.gstgsti %])</th>
+                        <th class="gste"/><th class="gste"/><th class="gsti"/><th class="gsti"/>
+                        <th>[% foot_loo.quantity %]</th>
+                        <th class="gste">[% foot_loo.totalgste %]</th>
+                        <th class="gsti">[% foot_loo.totalgsti %]</th>
+                        <th/>
+                        <th>[% foot_loo.gstvalue %]</th>
+                        <th/>
                         [% IF ( active ) %]
-                            [% IF ( closedate ) %]
-                            <td colspan="1" rowspan="3">&nbsp;</td>
-                            [% ELSE %]
-                            <td colspan="3" rowspan="3">&nbsp;</td>
+                            [% UNLESS ( closedate ) %]
+                                <th>&nbsp;</th>
+                                <th>&nbsp;</th>
                             [% END %]
                         [% END %]
-                </tr>
-                <tr>
-                    <th scope="row">Tax ([% gist_rate %])</th>
-                    <td>[% gist_rrp %]</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>[% gist_est %]</td>
-                </tr>
-                <tr>
-                    <th scope="row">Total tax inc. ([% currency %])</th>
-                    <td>[% total_rrp_gsti %]</td>
-                    <td>&nbsp;</td>
-                    <td>[% qty_total %]</td>
-                    <td>[% total_est_gsti %]</td>
-                </tr>
-                [% ELSE %]
-                <tr>
-                    <th scope="row">Total ([% currency %])</th>
-                    <td>[% total_rrp_gsti %]</td>
-                    <td>&nbsp;</td>
-                    <td>[% qty_total %]</td>
-                    <td>[% total_est_gsti %]</td>
-                    <td colspan="3">&nbsp;</td>
-                </tr>
+                    </tr>
                 [% END %]
+                <tr>
+                    <th>Total ([% currency %])</th>
+                    <th class="gste"/><th class="gste"/><th class="gsti"/><th class="gsti"/>
+                    <th>[% total_quantity %]</th>
+                    <th class="gste">[% total_gste %]</th>
+                    <th class="gsti">[% total_gsti %]</th>
+                    <th/>
+                    <th>[% total_gstvalue %]</th>
+                    <th/>
+                    [% IF ( active ) %]
+                        [% UNLESS ( closedate ) %]
+                            <th>&nbsp;</th>
+                            <th>&nbsp;</th>
+                        [% END %]
+                    [% END %]
+                </tr>
                 </tfoot>
                 <tbody>
                 [% FOREACH books_loo IN books_loop %]
@@ -313,10 +363,15 @@
                                 [% END %]
                             </p>
                         </td>
-                        <td class="number [% IF books_loo.rrp.search('^0') %]error[% END %]">[% books_loo.rrp %]</td>
-                        <td class="number [% IF books_loo.ecost.search('^0') %]error[% END %]">[% books_loo.ecost %]</td>
+                        <td class="number gste [% IF books_loo.rrpgste.search('^0') %]error[% END %]">[% books_loo.rrpgste %]</td>
+                        <td class="number gste [% IF books_loo.ecostgste.search('^0') %]error[% END %]">[% books_loo.ecostgste %]</td>
+                        <td class="number gsti [% IF books_loo.rrpgsti.search('^0') %]error[% END %]">[% books_loo.rrpgsti %]</td>
+                        <td class="number gsti [% IF books_loo.ecostgsti.search('^0') %]error[% END %]">[% books_loo.ecostgsti %]</td>
                         <td class="number [% IF books_loo.quantity.search('^0') %]error[% END %]">[% books_loo.quantity %]</td>
-                        <td class="number [% IF books_loo.line_total.search('^0') %]error[% END %]">[% books_loo.line_total %]</td>
+                        <td class="number gste [% IF books_loo.totalgste.search('^0') %]error[% END %]">[% books_loo.totalgste %]</td>
+                        <td class="number gsti [% IF books_loo.totalgsti.search('^0') %]error[% END %]">[% books_loo.totalgsti %]</td>
+                        <td class="number [% IF books_loo.gstgsti.search('^0') %]error[% END %]">[% books_loo.gstgsti %]</td>
+                        <td class="number [% IF books_loo.gstvalue.search('^0') %]error[% END %]">[% books_loo.gstvalue %]</td>
                         <td>[% books_loo.budget_name %]</td>
                         [% IF ( active ) %]
                             [% UNLESS ( closedate ) %]
@@ -353,10 +408,6 @@
                 [% END %]
                 </tbody>
             </table>
-        [% ELSE %]
-            <table>
-                <tr><td>Basket empty</td></tr>
-            </table>
         [% END %]
         [% IF ( listincgst ) %]<small class="highlight">** Vendor's listings already include tax.</small>
         [% END %]
@@ -368,10 +419,15 @@
               <thead>
                 <tr>
                   <th>Order</th>
-                  <th>RRP</th>
-                  <th>Est.</th>
+                  <th class="gste">RRP tax exc.</th>
+                  <th class="gste">ecost tax exc.</th>
+                  <th class="gsti">RRP tax inc.</th>
+                  <th class="gsti">ecost tax inc.</th>
                   <th>Qty.</th>
-                  <th>Total</th>
+                  <th class="gste">Total tax exc. ([% currency %])</th>
+                  <th class="gsti">Total tax inc. ([% currency %])</th>
+                  <th>GST %</th>
+                  <th>GST</th>
                   <th>Fund</th>
                 </tr>
               </thead>
@@ -394,11 +450,16 @@
                         [% IF ( books_loo.editionstatement ) %], [% books_loo.editionstatement %][% END %]
                       </p>
                     </td>
-                    <td><p>[% order.rrp %]</p></td>
-                    <td><p>[% order.ecost %]</p></td>
-                    <td><p>[% order.quantity %]</p></td>
-                    <td><p>[% order.line_total %]</p></td>
-                    <td><p>[% order.budget_name %]</p></td>
+                    <td class="number gste">[% order.rrpgste %]</td>
+                    <td class="number gste">[% order.ecostgste %]</td>
+                    <td class="number gsti">[% order.rrpgsti %]</td>
+                    <td class="number gsti">[% order.ecostgsti %]</td>
+                    <td class="number">[% order.quantity %]</td>
+                    <td class="number gste">[% order.totalgste %]</td>
+                    <td class="number gsti">[% order.totalgsti %]</td>
+                    <td class="number">[% order.gstgsti %]</td>
+                    <td class="number">[% order.gstvalue %]</td>
+                    <td>[% order.budget_name %]
                   </tr>
                 [% END %]
               </tbody>
@@ -427,8 +488,8 @@
             <input type="hidden" name="booksellerid" value="[% booksellerid %]" />
             <input type="hidden" name="confirm" value="1" />
             <input type="hidden" name="basketgroupname" value="[% basketgroupname %]" />
-            <input type="submit" class="approve" value="Yes, Close (Y)" accesskey="y" />
-            <input type="submit" class="deny" value="No, Don't Close (N)" accesskey="n" onclick="javascript:window.location='/cgi-bin/koha/acqui/basket.pl?basketno=[% basketno %]';return false;" />
+            <input type="submit" class="approve" value="Yes, close (Y)" accesskey="y" />
+            <input type="submit" class="deny" value="No, don't close (N)" accesskey="n" onclick="javascript:window.location='/cgi-bin/koha/acqui/basket.pl?basketno=[% basketno %]';return false;" />
         </form>
         </div>
     [% END %]

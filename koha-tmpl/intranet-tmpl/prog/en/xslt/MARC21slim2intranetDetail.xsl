@@ -9,7 +9,7 @@
   xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
   exclude-result-prefixes="marc items">
     <xsl:import href="MARC21slimUtils.xsl"/>
-    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" />
+    <xsl:output method = "html" indent="yes" omit-xml-declaration = "yes" encoding="UTF-8"/>
     <xsl:template match="/">
             <xsl:apply-templates/>
     </xsl:template>
@@ -174,9 +174,9 @@
                                 </xsl:call-template>
                             </xsl:with-param>
                         </xsl:call-template>
-			</a>
-                    <xsl:text> </xsl:text><xsl:call-template name="part"/>
-            <xsl:choose><xsl:when test="position()=last()"><xsl:text>.</xsl:text></xsl:when><xsl:otherwise><xsl:text>; </xsl:text></xsl:otherwise></xsl:choose>
+            </a>
+            <xsl:call-template name="part"/>
+            <xsl:choose><xsl:when test="position()=last()"><xsl:text>. </xsl:text></xsl:when><xsl:otherwise><xsl:text> ; </xsl:text></xsl:otherwise></xsl:choose>
         </xsl:for-each>
 
         <!-- 490 Series not traced, Ind1 = 0 -->
@@ -916,12 +916,14 @@
 	</xsl:choose>
 	<!-- add relator code too between brackets-->
 	<xsl:if test="marc:subfield[@code='4' or @code='e']">
-	  <xsl:text>[</xsl:text>
+      <span class="relatorcode">
+      <xsl:text> [</xsl:text>
 	  <xsl:choose>
 	    <xsl:when test="marc:subfield[@code=4]"><xsl:value-of select="marc:subfield[@code=4]"/></xsl:when>
 	    <xsl:otherwise><xsl:value-of select="marc:subfield[@code='e']"/></xsl:otherwise>
 	  </xsl:choose>
 	  <xsl:text>]</xsl:text>
+      </span>
 	</xsl:if>
 	</a>
         <xsl:choose>

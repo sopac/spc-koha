@@ -156,7 +156,7 @@ if ($op eq ""){
 
     # retrieve the file you want to import
     my $import_batch_id = $cgiparams->{'import_batch_id'};
-    my $biblios = GetImportBibliosRange($import_batch_id);
+    my $biblios = GetImportRecordsRange($import_batch_id);
     for my $biblio (@$biblios){
         # 1st insert the biblio, or find it through matcher
         my ( $marcblob, $encoding ) = GetImportRecordMarc( $biblio->{'import_record_id'} );
@@ -191,13 +191,11 @@ if ($op eq ""){
         # 3rd add order
         my $patron = C4::Members->GetMember( borrowernumber => $loggedinuser );
         my $branch = C4::Branch->GetBranchDetail( $patron->{branchcode} );
-        my ($invoice);
         # get quantity in the MARC record (1 if none)
         my $quantity = GetMarcQuantity($marcrecord, C4::Context->preference('marcflavour')) || 1;
         my %orderinfo = (
             "biblionumber", $biblionumber, "basketno", $cgiparams->{'basketno'},
             "quantity", $quantity, "branchcode", $branch, 
-            "booksellerinvoicenumber", $invoice, 
             "budget_id", $budget_id, "uncertainprice", 1,
             "sort1", $cgiparams->{'sort1'},"sort2", $cgiparams->{'sort2'},
             "notes", $cgiparams->{'notes'}, "budget_id", $cgiparams->{'budget_id'},
@@ -207,7 +205,6 @@ if ($op eq ""){
         my $price = GetMarcPrice($marcrecord, C4::Context->preference('marcflavour'));
 
         if ($price){
-            $orderinfo{'listprice'} = $price;
             eval {
 		require C4::Acquisition;
 		import C4::Acquisition qw/GetBasket/;
@@ -224,13 +221,19 @@ if ($op eq ""){
 	    }
             my $basket     = GetBasket( $orderinfo{basketno} );
             my $bookseller = GetBookSellerFromId( $basket->{booksellerid} );
-            my $gst        = $bookseller->{gstrate} || C4::Context->preference("gist") || 0;
-            $orderinfo{'unitprice'} = $orderinfo{listprice} - ( $orderinfo{listprice} * ( $bookseller->{discount} / 100 ) );
-            $orderinfo{'ecost'} = $orderinfo{unitprice};
+            $orderinfo{gstrate} = $bookseller->{gstrate};
+            if ( $bookseller->{listincgst} ) {
+                $orderinfo{ecost} = $price;
+            } else {
+                $orderinfo{ecost} = $price * ( 1 + $orderinfo{gstrate} );
+            }
+            $orderinfo{rrp} = ( $orderinfo{ecost} * 100 ) / ( 100 - $bookseller->{discount} );
+            $orderinfo{listprice} = $orderinfo{rrp};
+            $orderinfo{unitprice} = $orderinfo{ecost};
+            $orderinfo{total} = $orderinfo{ecost};
         } else {
             $orderinfo{'listprice'} = 0;
         }
-        $orderinfo{'rrp'} = $orderinfo{'listprice'};
 
         # remove uncertainprice flag if we have found a price in the MARC record
         $orderinfo{uncertainprice} = 0 if $orderinfo{listprice};
@@ -298,10 +301,7 @@ if ($budget) {    # its a mod ..
     }
 } elsif ( scalar(@$budgets) ) {
     $CGIsort1 = GetAuthvalueDropbox(  @$budgets[0]->{'sort1_authcat'}, '' );
-} else {
-    $CGIsort1 = GetAuthvalueDropbox(  '', '' );
 }
-
 # if CGIsort is successfully fetched, the use it
 # else - failback to plain input-field
 if ($CGIsort1) {
@@ -317,10 +317,7 @@ if ($budget) {
     }
 } elsif ( scalar(@$budgets) ) {
     $CGIsort2 = GetAuthvalueDropbox(  @$budgets[0]->{sort2_authcat}, '' );
-} else {
-    $CGIsort2 = GetAuthvalueDropbox( '', '' );
 }
-
 if ($CGIsort2) {
     $template->param( CGIsort2 => $CGIsort2 );
 } else {
@@ -338,7 +335,7 @@ sub import_batches_list {
     foreach my $batch (@$batches) {
         if ($batch->{'import_status'} eq "staged") {
             # check if there is at least 1 line still staged
-            my $stagedList=GetImportBibliosRange($batch->{'import_batch_id'}, undef, undef, 'staged');
+            my $stagedList=GetImportRecordsRange($batch->{'import_batch_id'}, undef, undef, 'staged');
             if (scalar @$stagedList) {
                 my ($staged_date, $staged_hour) = split (/ /, $batch->{'upload_timestamp'});
                 push @list, {
@@ -365,7 +362,7 @@ sub import_batches_list {
 sub import_biblios_list {
     my ($template, $import_batch_id) = @_;
     my $batch = GetImportBatch($import_batch_id,'staged');
-    my $biblios = GetImportBibliosRange($import_batch_id,'','','staged');
+    my $biblios = GetImportRecordsRange($import_batch_id,'','','staged');
     my @list = ();
 
     foreach my $biblio (@$biblios) {

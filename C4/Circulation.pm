@@ -83,6 +83,7 @@ BEGIN {
 		&GetBiblioIssues
 		&GetOpenIssue
 		&AnonymiseIssueHistory
+        &CheckIfIssuedToPatron
 	);
 
 	# subs to deal with returns
@@ -732,7 +733,7 @@ sub CanBookBeIssued {
     #
     if ( $borrower->{'category_type'} eq 'X' && (  $item->{barcode}  )) { 
     	# stats only borrower -- add entry to statistics table, and return issuingimpossible{STATS} = 1  .
-        &UpdateStats(C4::Context->userenv->{'branch'},'localuse','','',$item->{'itemnumber'},$item->{'itemtype'},$borrower->{'borrowernumber'});
+        &UpdateStats(C4::Context->userenv->{'branch'},'localuse','','',$item->{'itemnumber'},$item->{'itemtype'},$borrower->{'borrowernumber'}, undef, $item->{'ccode'});
         ModDateLastSeen( $item->{'itemnumber'} );
         return( { STATS => 1 }, {});
     }
@@ -982,16 +983,16 @@ sub CanBookBeIssued {
         # Index points to the next value
         my $restrictionyear = 0;
         if (($take <= $#values) && ($take >= 0)){
-            $restrictionyear += @values[$take];
+            $restrictionyear += $values[$take];
         }
 
         if ($restrictionyear > 0) {
             if ( $borrower->{'dateofbirth'}  ) {
                 my @alloweddate =  split /-/,$borrower->{'dateofbirth'} ;
-                @alloweddate[0] += $restrictionyear;
+                $alloweddate[0] += $restrictionyear;
                 #Prevent runime eror on leap year (invalid date)
-                if ((@alloweddate[1] == 2) && (@alloweddate[2] == 29)) {
-                    @alloweddate[2] = 28;
+                if (($alloweddate[1] == 2) && ($alloweddate[2] == 29)) {
+                    $alloweddate[2] = 28;
                 }
 
                 if ( Date_to_Days(Today) <  Date_to_Days(@alloweddate) -1  ) {
@@ -1005,7 +1006,116 @@ sub CanBookBeIssued {
             }
         }
     }
+
+## check for high holds decreasing loan period
+    my $decrease_loan = C4::Context->preference('decreaseLoanHighHolds');
+    if ( $decrease_loan && $decrease_loan == 1 ) {
+        my ( $reserved, $num, $duration, $returndate ) =
+          checkHighHolds( $item, $borrower );
+
+        if ( $num >= C4::Context->preference('decreaseLoanHighHoldsValue') ) {
+            $needsconfirmation{HIGHHOLDS} = {
+                num_holds  => $num,
+                duration   => $duration,
+                returndate => output_pref($returndate),
+            };
+        }
+    }
+
     return ( \%issuingimpossible, \%needsconfirmation, \%alerts );
+}
+
+=head2 CanBookBeReturned
+
+  ($returnallowed, $message) = CanBookBeReturned($item, $branch)
+
+Check whether the item can be returned to the provided branch
+
+=over 4
+
+=item C<$item> is a hash of item information as returned from GetItem
+
+=item C<$branch> is the branchcode where the return is taking place
+
+=back
+
+Returns:
+
+=over 4
+
+=item C<$returnallowed> is 0 or 1, corresponding to whether the return is allowed (1) or not (0)
+
+=item C<$message> is the branchcode where the item SHOULD be returned, if the return is not allowed
+
+=back
+
+=cut
+
+sub CanBookBeReturned {
+  my ($item, $branch) = @_;
+  my $allowreturntobranch = C4::Context->preference("AllowReturnToBranch") || 'anywhere';
+
+  # assume return is allowed to start
+  my $allowed = 1;
+  my $message;
+
+  # identify all cases where return is forbidden
+  if ($allowreturntobranch eq 'homebranch' && $branch ne $item->{'homebranch'}) {
+     $allowed = 0;
+     $message = $item->{'homebranch'};
+  } elsif ($allowreturntobranch eq 'holdingbranch' && $branch ne $item->{'holdingbranch'}) {
+     $allowed = 0;
+     $message = $item->{'holdingbranch'};
+  } elsif ($allowreturntobranch eq 'homeorholdingbranch' && $branch ne $item->{'homebranch'} && $branch ne $item->{'holdingbranch'}) {
+     $allowed = 0;
+     $message = $item->{'homebranch'}; # FIXME: choice of homebranch is arbitrary
+  }
+
+  return ($allowed, $message);
+}
+
+=head2 CheckHighHolds
+
+    used when syspref decreaseLoanHighHolds is active. Returns 1 or 0 to define whether the minimum value held in
+    decreaseLoanHighHoldsValue is exceeded, the total number of outstanding holds, the number of days the loan
+    has been decreased to (held in syspref decreaseLoanHighHoldsValue), and the new due date
+
+=cut
+
+sub checkHighHolds {
+    my ( $item, $borrower ) = @_;
+    my $biblio = GetBiblioFromItemNumber( $item->{itemnumber} );
+    my $branch = _GetCircControlBranch( $item, $borrower );
+    my $dbh    = C4::Context->dbh;
+    my $sth    = $dbh->prepare(
+'select count(borrowernumber) as num_holds from reserves where biblionumber=?'
+    );
+    $sth->execute( $item->{'biblionumber'} );
+    my ($holds) = $sth->fetchrow_array;
+    if ($holds) {
+        my $issuedate = DateTime->now( time_zone => C4::Context->tz() );
+
+        my $calendar = Koha::Calendar->new( branchcode => $branch );
+
+        my $itype =
+          ( C4::Context->preference('item-level_itypes') )
+          ? $biblio->{'itype'}
+          : $biblio->{'itemtype'};
+        my $orig_due =
+          C4::Circulation::CalcDateDue( $issuedate, $itype, $branch,
+            $borrower );
+
+        my $reduced_datedue =
+          $calendar->addDate( $issuedate,
+            C4::Context->preference('decreaseLoanHighHoldsDuration') );
+
+        if ( DateTime->compare( $reduced_datedue, $orig_due ) == -1 ) {
+            return ( 1, $holds,
+                C4::Context->preference('decreaseLoanHighHoldsDuration'),
+                $reduced_datedue );
+        }
+    }
+    return ( 0, 0, 0, undef );
 }
 
 =head2 AddIssue
@@ -1065,7 +1175,7 @@ sub AddIssue {
     }
 	if ($borrower and $barcode and $barcodecheck ne '0'){#??? wtf
 		# find which item we issue
-		my $item = GetItem('', $barcode) or return undef;	# if we don't get an Item, abort.
+		my $item = GetItem('', $barcode) or return;	# if we don't get an Item, abort.
 		my $branch = _GetCircControlBranch($item,$borrower);
 		
 		# get actual issuing if there is one
@@ -1143,7 +1253,9 @@ sub AddIssue {
 
         ## If item was lost, it has now been found, reverse any list item charges if neccessary.
         if ( $item->{'itemlost'} ) {
-            _FixAccountForLostAndReturned( $item->{'itemnumber'}, undef, $item->{'barcode'} );
+            if ( C4::Context->preference('RefundLostItemFeeOnReturn' ) ) {
+                _FixAccountForLostAndReturned( $item->{'itemnumber'}, undef, $item->{'barcode'} );
+            }
         }
 
         ModItem({ issues           => $item->{'issues'},
@@ -1172,7 +1284,7 @@ sub AddIssue {
             C4::Context->userenv->{'branch'},
             'issue', $charge,
             ($sipmode ? "SIP-$sipmode" : ''), $item->{'itemnumber'},
-            $item->{'itype'}, $borrower->{'borrowernumber'}
+            $item->{'itype'}, $borrower->{'borrowernumber'}, undef, $item->{'ccode'}
         );
 
         # Send a checkout slip.
@@ -1340,7 +1452,7 @@ sub GetIssuingRule {
     return $irule if defined($irule) ;
 
     # if no rule matches,
-    return undef;
+    return;
 }
 
 =head2 GetBranchBorrowerCircRule
@@ -1623,24 +1735,20 @@ sub AddReturn {
         $branches->{$hbr}->{PE} and $messages->{'IsPermanent'} = $hbr;
     }
 
-    # if indy branches and returning to different branch, refuse the return unless canreservefromotherbranches is turned on
-    if ($hbr ne $branch && C4::Context->preference("IndependantBranches") && !(C4::Context->preference("canreservefromotherbranches"))){
+    # check if the return is allowed at this branch
+    my ($returnallowed, $message) = CanBookBeReturned($item, $branch);
+    unless ($returnallowed){
         $messages->{'Wrongbranch'} = {
             Wrongbranch => $branch,
-            Rightbranch => $hbr,
+            Rightbranch => $message
         };
         $doreturn = 0;
-        # bailing out here - in this case, current desired behavior
-        # is to act as if no return ever happened at all.
-        # FIXME - even in an indy branches situation, there should
-        # still be an option for the library to accept the item
-        # and transfer it to its owning library.
         return ( $doreturn, $messages, $issue, $borrower );
     }
 
     if ( $item->{'wthdrawn'} ) { # book has been cancelled
         $messages->{'wthdrawn'} = 1;
-        $doreturn = 0;
+        $doreturn = 0 if C4::Context->preference("BlockReturnOfWithdrawnItems");
     }
 
     # case of a return of document (deal with issues and holdingbranch)
@@ -1708,9 +1816,13 @@ sub AddReturn {
     }
 
     # fix up the accounts.....
-    if ($item->{'itemlost'}) {
-        _FixAccountForLostAndReturned($item->{'itemnumber'}, $borrowernumber, $barcode);    # can tolerate undef $borrowernumber
+    if ( $item->{'itemlost'} ) {
         $messages->{'WasLost'} = 1;
+
+        if ( C4::Context->preference('RefundLostItemFeeOnReturn' ) ) {
+            _FixAccountForLostAndReturned($item->{'itemnumber'}, $borrowernumber, $barcode);    # can tolerate undef $borrowernumber
+            $messages->{'LostItemFeeRefunded'} = 1;
+        }
     }
 
     # fix up the overdues in accounts...
@@ -1728,7 +1840,8 @@ sub AddReturn {
 
     # find reserves.....
     # if we don't have a reserve with the status W, we launch the Checkreserves routine
-    my ($resfound, $resrec, undef) = C4::Reserves::CheckReserves( $item->{'itemnumber'} );
+    my ($resfound, $resrec);
+    ($resfound, $resrec, undef) = C4::Reserves::CheckReserves( $item->{'itemnumber'} ) unless ( $item->{'wthdrawn'} );
     if ($resfound) {
           $resrec->{'ResFound'} = $resfound;
         $messages->{'ResFound'} = $resrec;
@@ -1740,7 +1853,7 @@ sub AddReturn {
         $branch, $stat_type, '0', '',
         $item->{'itemnumber'},
         $biblio->{'itemtype'},
-        $borrowernumber
+        $borrowernumber, undef, $item->{'ccode'}
     );
 
     # Send a check-in slip. # NOTE: borrower may be undef.  probably shouldn't try to send messages then.
@@ -1876,7 +1989,7 @@ sub _debar_user_on_return {
     # $deltadays is a DateTime::Duration object
     my $deltadays = $calendar->days_between( $dt_due, $dt_today );
 
-    my $circcontrol = C4::Context::preference('CircControl');
+    my $circcontrol = C4::Context->preference('CircControl');
     my $issuingrule =
       GetIssuingRule( $borrower->{categorycode}, $item->{itype}, $branchcode );
     my $finedays = $issuingrule->{finedays};
@@ -1953,7 +2066,7 @@ sub _FixOverduesOnReturn {
     return 0 unless $data;    # no warning, there's just nothing to fix
 
     my $uquery;
-    my @bind = ($borrowernumber, $item, $data->{'accountno'});
+    my @bind = ($data->{'accountlines_id'});
     if ($exemptfine) {
         $uquery = "update accountlines set accounttype='FFOR', amountoutstanding=0";
         if (C4::Context->preference("FinesLog")) {
@@ -1973,7 +2086,7 @@ sub _FixOverduesOnReturn {
     } else {
         $uquery = "update accountlines set accounttype='F' ";
     }
-    $uquery .= " where (borrowernumber = ?) and (itemnumber = ?) and (accountno = ?)";
+    $uquery .= " where (accountlines_id = ?)";
     my $usth = $dbh->prepare($uquery);
     return $usth->execute(@bind);
 }
@@ -2016,9 +2129,8 @@ sub _FixAccountForLostAndReturned {
         $amountleft = $data->{'amountoutstanding'} - $amount;   # Um, isn't this the same as ZERO?  We just tested those two things are ==
     }
     my $usth = $dbh->prepare("UPDATE accountlines SET accounttype = 'LR',amountoutstanding='0'
-        WHERE (borrowernumber = ?)
-        AND (itemnumber = ?) AND (accountno = ?) ");
-    $usth->execute($data->{'borrowernumber'},$itemnumber,$acctno);      # We might be adjusting an account for some OTHER borrowernumber now.  Not the one we passed in.  
+        WHERE (accountlines_id = ?)");
+    $usth->execute($data->{'accountlines_id'});      # We might be adjusting an account for some OTHER borrowernumber now.  Not the one we passed in.
     #check if any credit is left if so writeoff other accounts
     my $nextaccntno = getnextacctno($data->{'borrowernumber'});
     $amountleft *= -1 if ($amountleft < 0);
@@ -2037,12 +2149,11 @@ sub _FixAccountForLostAndReturned {
                 $newamtos = $accdata->{'amountoutstanding'} - $amountleft;
                 $amountleft = 0;
             }
-            my $thisacct = $accdata->{'accountno'};
+            my $thisacct = $accdata->{'accountlines_id'};
             # FIXME: move prepares outside while loop!
             my $usth = $dbh->prepare("UPDATE accountlines SET amountoutstanding= ?
-                    WHERE (borrowernumber = ?)
-                    AND (accountno=?)");
-            $usth->execute($newamtos,$data->{'borrowernumber'},'$thisacct');    # FIXME: '$thisacct' is a string literal!
+                    WHERE (accountlines_id = ?)");
+            $usth->execute($newamtos,'$thisacct');    # FIXME: '$thisacct' is a string literal!
             $usth = $dbh->prepare("INSERT INTO accountoffsets
                 (borrowernumber, accountno, offsetaccount,  offsetamount)
                 VALUES
@@ -2225,7 +2336,7 @@ tables issues and the firstname,surname & cardnumber from borrowers.
 
 sub GetBiblioIssues {
     my $biblionumber = shift;
-    return undef unless $biblionumber;
+    return unless $biblionumber;
     my $dbh   = C4::Context->dbh;
     my $query = "
         SELECT issues.*,items.barcode,biblio.biblionumber,biblio.title, biblio.author,borrowers.cardnumber,borrowers.surname,borrowers.firstname
@@ -2403,13 +2514,13 @@ from the book's item type.
 =cut
 
 sub AddRenewal {
-    my $borrowernumber  = shift or return undef;
-    my $itemnumber      = shift or return undef;
+    my $borrowernumber  = shift or return;
+    my $itemnumber      = shift or return;
     my $branch          = shift;
     my $datedue         = shift;
     my $lastreneweddate = shift || DateTime->now(time_zone => C4::Context->tz)->ymd();
-    my $item   = GetItem($itemnumber) or return undef;
-    my $biblio = GetBiblioFromItemNumber($itemnumber) or return undef;
+    my $item   = GetItem($itemnumber) or return;
+    my $biblio = GetBiblioFromItemNumber($itemnumber) or return;
 
     my $dbh = C4::Context->dbh;
     # Find the issues record for this book
@@ -2430,7 +2541,7 @@ sub AddRenewal {
     # based on the value of the RenewalPeriodBase syspref.
     unless ($datedue) {
 
-        my $borrower = C4::Members::GetMember( borrowernumber => $borrowernumber ) or return undef;
+        my $borrower = C4::Members::GetMember( borrowernumber => $borrowernumber ) or return;
         my $itemtype = (C4::Context->preference('item-level_itypes')) ? $biblio->{'itype'} : $biblio->{'itemtype'};
 
         $datedue = (C4::Context->preference('RenewalPeriodBase') eq 'date_due') ?
@@ -2471,8 +2582,29 @@ sub AddRenewal {
             "Renewal of Rental Item $item->{'title'} $item->{'barcode'}",
             'Rent', $charge, $itemnumber );
     }
+
+    # Send a renewal slip according to checkout alert preferencei
+    if ( C4::Context->preference('RenewalSendNotice') eq '1') {
+	my $borrower = C4::Members::GetMemberDetails( $borrowernumber, 0 );
+	my $circulation_alert = 'C4::ItemCirculationAlertPreference';
+	my %conditions = (
+		branchcode   => $branch,
+		categorycode => $borrower->{categorycode},
+		item_type    => $item->{itype},
+		notification => 'CHECKOUT',
+	);
+	if ($circulation_alert->is_enabled_for(\%conditions)) {
+		SendCirculationAlert({
+			type     => 'RENEWAL',
+			item     => $item,
+		borrower => $borrower,
+		branch   => $branch,
+		});
+	}
+    }
+
     # Log the renewal
-    UpdateStats( $branch, 'renew', $charge, '', $itemnumber, $item->{itype}, $borrowernumber);
+    UpdateStats( $branch, 'renew', $charge, '', $itemnumber, $item->{itype}, $borrowernumber, undef, $item->{'ccode'});
 	return $datedue;
 }
 
@@ -2792,12 +2924,13 @@ sub SendCirculationAlert {
     my %message_name = (
         CHECKIN  => 'Item_Check_in',
         CHECKOUT => 'Item_Checkout',
+	RENEWAL  => 'Item_Checkout',
     );
     my $borrower_preferences = C4::Members::Messaging::GetMessagingPreferences({
         borrowernumber => $borrower->{borrowernumber},
         message_name   => $message_name{$type},
     });
-    my $issues_table = ( $type eq 'CHECKOUT' ) ? 'issues' : 'old_issues';
+    my $issues_table = ( $type eq 'CHECKOUT' || $type eq 'RENEWAL' ) ? 'issues' : 'old_issues';
     my $letter =  C4::Letters::GetPreparedLetter (
         module => 'circulation',
         letter_code => $type,
@@ -2910,13 +3043,14 @@ sub CalcDateDue {
               ->truncate( to => 'minute' );
             if ( $loanlength->{lengthunit} eq 'hours' ) {
                 $dt->add( hours => $loanlength->{issuelength} );
-                return $dt;
             } else {    # days
                 $dt->add( days => $loanlength->{issuelength} );
                 $dt->set_hour(23);
                 $dt->set_minute(59);
-                return $dt;
             }
+            # break
+            return $dt;
+
         } else {
             my $dur;
             if ($loanlength->{lengthunit} eq 'hours') {
@@ -2959,6 +3093,7 @@ sub CalcDateDue {
     # if ReturnBeforeExpiry ON the datedue can't be after borrower expirydate
     if ( C4::Context->preference('ReturnBeforeExpiry') ) {
         my $expiry_dt = dt_from_string( $borrower->{dateexpiry}, 'iso' );
+        $expiry_dt->set( hour => 23, minute => 59);
         if ( DateTime->compare( $datedue, $expiry_dt ) == 1 ) {
             $datedue = $expiry_dt->clone;
         }
@@ -3309,6 +3444,26 @@ sub TransferSlip {
             'items'       => $item,
         },
     );
+}
+
+=head2 CheckIfIssuedToPatron
+
+  CheckIfIssuedToPatron($borrowernumber, $biblionumber)
+
+  Return 1 if any record item is issued to patron, otherwise return 0
+
+=cut
+
+sub CheckIfIssuedToPatron {
+    my ($borrowernumber, $biblionumber) = @_;
+
+    my $items = GetItemsByBiblioitemnumber($biblionumber);
+
+    foreach my $item (@{$items}) {
+        return 1 if ($item->{borrowernumber} && $item->{borrowernumber} eq $borrowernumber);
+    }
+
+    return;
 }
 
 

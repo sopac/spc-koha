@@ -49,6 +49,7 @@ use MARC::Field;
 use List::MoreUtils qw/any none/;
 use C4::Images;
 use Koha::DateUtils;
+use C4::HTML5Media;
 
 BEGIN {
 	if (C4::Context->preference('BakerTaylorEnabled')) {
@@ -69,6 +70,7 @@ my ( $template, $borrowernumber, $cookie ) = get_template_and_user(
 );
 
 my $biblionumber = $query->param('biblionumber') || $query->param('bib');
+$biblionumber = int($biblionumber);
 
 my $record       = GetMarcBiblio($biblionumber);
 if ( ! $record ) {
@@ -470,6 +472,8 @@ foreach my $subscription (@subscriptions) {
     $cell{branchcode}        = $subscription->{branchcode};
     $cell{branchname}        = GetBranchName($subscription->{branchcode});
     $cell{hasalert}          = $subscription->{hasalert};
+    $cell{callnumber}        = $subscription->{callnumber};
+    $cell{closed}            = $subscription->{closed};
     #get the three latest serials.
     $serials_to_display = $subscription->{opacdisplaycount};
     $serials_to_display = C4::Context->preference('OPACSerialIssueDisplayCount') unless $serials_to_display;
@@ -481,13 +485,6 @@ foreach my $subscription (@subscriptions) {
 
 $dat->{'count'} = scalar(@items);
 
-# If there is a lot of items, and the user has not decided
-# to view them all yet, we first warn him
-# TODO: The limit of 50 could be a syspref
-my $viewallitems = $query->param('viewallitems');
-if ($dat->{'count'} >= 50 && !$viewallitems) {
-    $template->param('lotsofitems' => 1);
-}
 
 my $biblio_authorised_value_images = C4::Items::get_authorised_value_images( C4::Biblio::get_biblio_authorised_values( $biblionumber, $record ) );
 
@@ -516,6 +513,12 @@ $template->param( show_priority => $has_hold ) ;
 my $norequests = 1;
 my $branches = GetBranches();
 my %itemfields;
+my (@itemloop, @otheritemloop);
+my $currentbranch = C4::Context->userenv ? C4::Context->userenv->{branch} : undef;
+if ($currentbranch and C4::Context->preference('OpacSeparateHoldings')) {
+    $template->param(SeparateHoldings => 1);
+}
+my $separatebranch = C4::Context->preference('OpacSeparateHoldingsBranch');
 for my $itm (@items) {
     $itm->{holds_count} = $item_reserves{ $itm->{itemnumber} };
     $itm->{priority} = $priority{ $itm->{itemnumber} };
@@ -566,6 +569,24 @@ for my $itm (@items) {
         $itm->{transfertfrom} = $branches->{$transfertfrom}{branchname};
         $itm->{transfertto}   = $branches->{$transfertto}{branchname};
      }
+    my $itembranch = $itm->{$separatebranch};
+    if ($currentbranch and C4::Context->preference('OpacSeparateHoldings')) {
+        if ($itembranch and $itembranch eq $currentbranch) {
+            push @itemloop, $itm;
+        } else {
+            push @otheritemloop, $itm;
+        }
+    } else {
+        push @itemloop, $itm;
+    }
+}
+
+# If there is a lot of items, and the user has not decided
+# to view them all yet, we first warn him
+# TODO: The limit of 50 could be a syspref
+my $viewallitems = $query->param('viewallitems');
+if (scalar(@itemloop) >= 50 && !$viewallitems) {
+    $template->param('lotsofitems' => 1);
 }
 
 ## get notes and subjects from MARC record
@@ -694,7 +715,8 @@ if(C4::Context->preference("ISBD")) {
 }
 
 $template->param(
-    ITEM_RESULTS        => \@items,
+    itemloop            => \@itemloop,
+    otheritemloop       => \@otheritemloop,
     subscriptionsnumber => $subscriptionsnumber,
     biblionumber        => $biblionumber,
     subscriptions       => \@subs,
@@ -722,6 +744,9 @@ if (C4::Context->preference("OPACFRBRizeEditions")==1) {
 
 # Serial Collection
 my @sc_fields = $record->field(955);
+my @lc_fields = $marcflavour eq 'UNIMARC'
+    ? $record->field(930)
+    : $record->field(852);
 my @serialcollections = ();
 
 foreach my $sc_field (@sc_fields) {
@@ -729,9 +754,15 @@ foreach my $sc_field (@sc_fields) {
 
     $row_data{text}    = $sc_field->subfield('r');
     $row_data{branch}  = $sc_field->subfield('9');
+    foreach my $lc_field (@lc_fields) {
+        $row_data{itemcallnumber} = $marcflavour eq 'UNIMARC'
+            ? $lc_field->subfield('a') # 930$a
+            : $lc_field->subfield('h') # 852$h
+            if ($sc_field->subfield('5') eq $lc_field->subfield('5'));
+    }
 
     if ($row_data{text} && $row_data{branch}) { 
-	push (@serialcollections, \%row_data);
+        push (@serialcollections, \%row_data);
     }
 }
 
@@ -744,6 +775,11 @@ if (scalar(@serialcollections) > 0) {
 # Local cover Images stuff
 if (C4::Context->preference("OPACLocalCoverImages")){
 		$template->param(OPACLocalCoverImages => 1);
+}
+
+# HTML5 Media
+if ( (C4::Context->preference("HTML5MediaEnabled") eq 'both') or (C4::Context->preference("HTML5MediaEnabled") eq 'opac') ) {
+    $template->param( C4::HTML5Media->gethtml5media($record));
 }
 
 my $syndetics_elements;
@@ -845,8 +881,7 @@ if ( C4::Context->preference( "SocialNetworks" ) ) {
 
 # Shelf Browser Stuff
 if (C4::Context->preference("OPACShelfBrowser")) {
-    # pick the first itemnumber unless one was selected by the user
-    my $starting_itemnumber = $query->param('shelfbrowse_itemnumber'); # || $items[0]->{itemnumber};
+    my $starting_itemnumber = $query->param('shelfbrowse_itemnumber');
     if (defined($starting_itemnumber)) {
         $template->param( OpenOPACShelfBrowser => 1) if $starting_itemnumber;
         my $nearby = GetNearbyItems($starting_itemnumber,3);
@@ -863,6 +898,13 @@ if (C4::Context->preference("OPACShelfBrowser")) {
             PREVIOUS_SHELF_BROWSE => $nearby->{prev},
             NEXT_SHELF_BROWSE => $nearby->{next},
         );
+
+        # in which tab shelf browser should open ?
+        if (grep { $starting_itemnumber == $_->{itemnumber} } @itemloop) {
+            $template->param(shelfbrowser_tab => 'holdings');
+        } else {
+            $template->param(shelfbrowser_tab => 'otherholdings');
+        }
     }
 }
 
@@ -948,7 +990,7 @@ my $defaulttab =
         ? 'subscriptions' :
     $opac_serial_default eq 'serialcollection' && @serialcollections > 0
         ? 'serialcollection' :
-    $opac_serial_default eq 'holdings' && $dat->{'count'} > 0
+    $opac_serial_default eq 'holdings' && scalar (@itemloop) > 0
         ? 'holdings' :
     $subscriptionsnumber
         ? 'subscriptions' :

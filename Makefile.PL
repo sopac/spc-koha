@@ -508,6 +508,7 @@ my $pl_files = {
 if ($config{'INSTALL_ZEBRA'} eq "yes") {
     push @{ $pl_files->{'rewrite-config.PL'} }, (
         'blib/ZEBRA_CONF_DIR/etc/passwd',
+        'blib/ZEBRA_CONF_DIR/etc/usmarc.mar',
         'blib/ZEBRA_CONF_DIR/zebra-biblios.cfg',
         'blib/ZEBRA_CONF_DIR/zebra-biblios-dom.cfg',
         'blib/ZEBRA_CONF_DIR/zebra-authorities.cfg',
@@ -522,7 +523,7 @@ if ($config{'INSTALL_ZEBRA'} eq "yes") {
     push @{ $pl_files->{'rewrite-config.PL'} }, (
         'blib/SCRIPT_DIR/koha-zebra-ctl.sh',
         'blib/SCRIPT_DIR/koha-pazpar2-ctl.sh',
-        'blib/SCRIPT_DIR/koha-zebraqueue-ctl.sh',
+        'blib/SCRIPT_DIR/koha-index-daemon-ctl.sh',
     );
     if ($config{'INSTALL_PAZPAR2'} eq 'yes') {
         push @{ $pl_files->{'rewrite-config.PL'} }, (
@@ -1358,6 +1359,8 @@ sub _add_destdir {
 sub display_configuration {
     my $config = shift;
     my $dirmap = shift;
+    my @version = grep /\/usr\/share\/perl\//, @INC;
+    push @version, ('/usr/share/perl/5.10') if !$version[0];
     print "\n\nKoha will be installed with the following configuration parameters:\n\n";
     foreach my $key (sort keys %$config) {
         print sprintf("%-25.25s%s\n", $key, $config->{$key});
@@ -1370,7 +1373,7 @@ sub display_configuration {
     print "\n\nTo change any configuration setting, please run\n";
     print "perl Makefile.PL again.  To override one of the target\n";
     print "directories, you can do so on the command line like this:\n";
-    print "\nperl Makefile.PL PERL_MODULE_DIR=/usr/share/perl/5.8\n\n";
+    print "\nperl Makefile.PL PERL_MODULE_DIR=$version[0]\n\n";
     print "You can also set different default values for parameters\n";
     print "or override directory locations by using environment variables.\n";
     print "\nFor example:\n\n";

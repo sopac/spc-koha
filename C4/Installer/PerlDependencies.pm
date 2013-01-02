@@ -202,7 +202,7 @@ our $PERL_DEPS = {
     'DateTime::TimeZone' => {
         'usage'    => 'Core',
         'required' => '1',
-        'min_ver'  => '1.26'
+        'min_ver'  => '1.20'
     },
     'DateTime::Format::DateParse' => {
         'usage'    => 'Core',
@@ -576,19 +576,28 @@ our $PERL_DEPS = {
     },
     'DBD::Mock' => {
         'usage'    => 'Core',
-        'required' => '0',
+        'required' => '1',
         'min_ver'  => '1.39'
     },
     'Test::MockModule' => {
         'usage'    => 'Core',
-        'required' => '0',
+        'required' => '1',
         'min_ver'  => '0.05',
+    },
+    'Test::Warn' => {
+        'usage'    => 'Core',
+        'required' => '0',
+        'min_ver'  => '0.21',
     },
     'Test::Strict' => {
         'usage'    => 'Core',
         'required' => '0',
         'min_ver'  => '0.14',
-
+    },
+    'Test::Deep' => {
+        'usage'    => 'Core',
+        'required' => '0',
+        'min_ver'  => '0.106',
     },
     'Test::YAML::Valid' => {
         'usage'    => 'Core',
@@ -604,6 +613,26 @@ our $PERL_DEPS = {
         'usage'    => 'Core',
         'required' => '1',
         'min_ver'  => '1.23',
+    },
+    'AnyEvent' => {
+        'usage'    => 'Command line scripts',
+        'required' => '0',
+        'min_ver'  => '5.0',
+    },
+    'AnyEvent::HTTP' => {
+        'usage'    => 'Command line scripts',
+        'required' => '0',
+        'min_ver'  => '2.13',
+    },
+    'Moose' => {
+        'usage'    => 'Core',
+        'required' => '0',
+        'min_ver'  => '1.09',
+      },
+    'String::Random' => {
+        'usage'    => 'OpacSelfRegistration',
+        'required' => '0',
+        'min_ver'  => '0.22',
     },
 };
 

@@ -151,6 +151,7 @@ foreach my $serialid (@serialids) {
             )
             || $serinfo->{'cannotedit'}
         );
+        $serinfo->{editdisable} ||= ($serinfo->{status8} and $serinfo->{closed});
         push @serialdatalist, $serinfo;
         $processedserialid{$serialid} = 1;
     }
@@ -394,6 +395,7 @@ my $default_bib_view = get_default_view();
 $template->param(
     serialsadditems => $serialdatalist[0]->{'serialsadditems'},
     callnumber	     => $serialdatalist[0]->{'callnumber'},
+    internalnotes   => $serialdatalist[0]->{'internalnotes'},
     bibliotitle     => $biblio->{'title'},
     biblionumber    => $serialdatalist[0]->{'biblionumber'},
     serialslist     => \@serialdatalist,

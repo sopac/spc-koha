@@ -26,28 +26,30 @@ use Exporter;
 use C4::Context;
 use C4::Debug;
 #use Data::Dumper;
+use constant TAG_FIELDS => qw(tag_id borrowernumber biblionumber term language date_created);
+use constant TAG_SELECT => "SELECT " . join(',', TAG_FIELDS) . "\n FROM   tags_all\n";
 
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
-use vars qw($ext_dict $select_all @fields);
+our $ext_dict;
 
 BEGIN {
     $VERSION = 3.07.00.049;
 	@ISA = qw(Exporter);
-	@EXPORT_OK = qw(
-		&get_tag &get_tags &get_tag_rows
-		&add_tags &add_tag
-		&delete_tag_row_by_id
-		&remove_tag
-		&delete_tag_rows_by_ids
-		&rectify_weights
-		&get_approval_rows
-		&blacklist
-		&whitelist
-		&is_approved
-		&approval_counts
-		&get_count_by_tag_status
-		&get_filters
-	);
+    @EXPORT_OK = qw(
+      &get_tag &get_tags &get_tag_rows
+      &add_tags &add_tag
+      &delete_tag_row_by_id
+      &remove_tag
+      &delete_tag_rows_by_ids
+      &get_approval_rows
+      &blacklist
+      &whitelist
+      &is_approved
+      &approval_counts
+      &get_count_by_tag_status
+      &get_filters
+      stratify_tags
+    );
 	# %EXPORT_TAGS = ();
 	$ext_dict = C4::Context->preference('TagsExternalDictionary');
 	if ($debug) {
@@ -61,11 +63,15 @@ BEGIN {
 	}
 }
 
+=head1 C4::Tags.pm - Support for user tagging of biblios.
+
+More verose debugging messages are sent in the presence of non-zero $ENV{"DEBUG"}.
+
+=cut
+
 INIT {
     $ext_dict and $Lingua::Ispell::path = $ext_dict;
     $debug and print STDERR "\$Lingua::Ispell::path = $Lingua::Ispell::path\n";
-	@fields = qw(tag_id borrowernumber biblionumber term language date_created);
-	$select_all = "SELECT " . join(',',@fields) . "\n FROM   tags_all\n";
 }
 
 sub get_filters {
@@ -117,13 +123,13 @@ sub get_count_by_tag_status  {
 }
 
 sub remove_tag {
-	my $tag_id  = shift or return undef;
+	my $tag_id  = shift or return;
 	my $user_id = (@_) ? shift : undef;
 	my $rows = (defined $user_id) ?
 			get_tag_rows({tag_id=>$tag_id, borrowernumber=>$user_id}) :
 			get_tag_rows({tag_id=>$tag_id}) ;
 	$rows or return 0;
-	(scalar(@$rows) == 1) or return undef;	# should never happen (duplicate ids)
+	(scalar(@$rows) == 1) or return;	# should never happen (duplicate ids)
 	my $row = shift(@$rows);
 	($tag_id == $row->{tag_id}) or return 0;
 	my $tags = get_tags({term=>$row->{term}, biblionumber=>$row->{biblionumber}});
@@ -145,25 +151,25 @@ sub remove_tag {
 }
 
 sub delete_tag_index {
-	(@_) or return undef;
+	(@_) or return;
 	my $sth = C4::Context->dbh->prepare("DELETE FROM tags_index WHERE term = ? AND biblionumber = ? LIMIT 1");
 	$sth->execute(@_);
 	return $sth->rows || 0;
 }
 sub delete_tag_approval {
-	(@_) or return undef;
+	(@_) or return;
 	my $sth = C4::Context->dbh->prepare("DELETE FROM tags_approval WHERE term = ? LIMIT 1");
 	$sth->execute(shift);
 	return $sth->rows || 0;
 }
 sub delete_tag_row_by_id {
-	(@_) or return undef;
+	(@_) or return;
 	my $sth = C4::Context->dbh->prepare("DELETE FROM tags_all WHERE tag_id = ? LIMIT 1");
 	$sth->execute(shift);
 	return $sth->rows || 0;
 }
 sub delete_tag_rows_by_ids {
-	(@_) or return undef;
+	(@_) or return;
 	my $i=0;
 	foreach(@_) {
 		$i += delete_tag_row_by_id($_);
@@ -175,7 +181,7 @@ sub delete_tag_rows_by_ids {
 
 sub get_tag_rows {
 	my $hash = shift || {};
-	my @ok_fields = @fields;
+    my @ok_fields = TAG_FIELDS;
 	push @ok_fields, 'limit';	# push the limit! :)
 	my $wheres;
 	my $limit  = "";
@@ -202,7 +208,7 @@ sub get_tag_rows {
 			push @exe_args, $hash->{$key};
 		}
 	}
-	my $query = $select_all . ($wheres||'') . $limit;
+    my $query = TAG_SELECT . ($wheres||'') . $limit;
 	$debug and print STDERR "get_tag_rows query:\n $query\n",
 							"get_tag_rows query args: ", join(',', @exe_args), "\n";
 	my $sth = C4::Context->dbh->prepare($query);
@@ -359,7 +365,7 @@ sub get_approval_rows {		# i.e., from tags_approval
 }
 
 sub is_approved {
-	my $term = shift or return undef;
+	my $term = shift or return;
 	my $sth = C4::Context->dbh->prepare("SELECT approved FROM tags_approval WHERE term = ?");
 	$sth->execute($term);
 	unless ($sth->rows) {
@@ -370,7 +376,7 @@ sub is_approved {
 }
 
 sub get_tag_index {
-	my $term = shift or return undef;
+	my $term = shift or return;
 	my $sth;
 	if (@_) {
 		$sth = C4::Context->dbh->prepare("SELECT * FROM tags_index WHERE term = ? AND biblionumber = ?");
@@ -384,7 +390,7 @@ sub get_tag_index {
 
 sub whitelist {
 	my $operator = shift;
-	defined $operator or return undef; # have to test defined to allow =0 (kohaadmin)
+	defined $operator or return; # have to test defined to allow =0 (kohaadmin)
 	if ($ext_dict) {
 		foreach (@_) {
 			spellcheck($_) or next;
@@ -406,7 +412,7 @@ sub whitelist {
 # a term mistakenly, you can still reverse it. But there is no going back to "neutral".
 sub blacklist {
 	my $operator = shift;
-	defined $operator or return undef; # have to test defined to allow =0 (kohaadmin)
+	defined $operator or return; # have to test defined to allow =0 (kohaadmin)
 	foreach (@_) {
 		my $aref = get_approval_rows({term=>$_});
 		if ($aref and scalar @$aref) {
@@ -419,14 +425,14 @@ sub blacklist {
 }
 sub add_filter {
 	my $operator = shift;
-	defined $operator or return undef; # have to test defined to allow =0 (kohaadmin)
+	defined $operator or return; # have to test defined to allow =0 (kohaadmin)
 	my $query = "INSERT INTO tags_blacklist (regexp,y,z) VALUES (?,?,?)";
 	# my $sth = C4::Context->dbh->prepare($query);
 	return scalar @_;
 }
 sub remove_filter {
 	my $operator = shift;
-	defined $operator or return undef; # have to test defined to allow =0 (kohaadmin)
+	defined $operator or return; # have to test defined to allow =0 (kohaadmin)
 	my $query = "REMOVE FROM tags_blacklist WHERE blacklist_id = ?";
 	# my $sth = C4::Context->dbh->prepare($query);
 	# $sth->execute($term);
@@ -435,7 +441,7 @@ sub remove_filter {
 
 sub add_tag_approval {	# or disapproval
 	$debug and warn "add_tag_approval(" . join(", ",map {defined($_) ? $_ : 'UNDEF'} @_) . ")";
-	my $term = shift or return undef;
+	my $term = shift or return;
 	my $query = "SELECT * FROM tags_approval WHERE term = ?";
 	my $sth = C4::Context->dbh->prepare($query);
 	$sth->execute($term);
@@ -460,8 +466,8 @@ sub add_tag_approval {	# or disapproval
 
 sub mod_tag_approval {
 	my $operator = shift;
-	defined $operator or return undef; # have to test defined to allow =0 (kohaadmin)
-	my $term     = shift or return undef;
+	defined $operator or return; # have to test defined to allow =0 (kohaadmin)
+	my $term     = shift or return;
 	my $approval = (scalar @_ ? shift : 1);	# default is to approve
 	my $query = "UPDATE tags_approval SET approved_by=?, approved=?, date_approved=NOW() WHERE term = ?";
 	$debug and print STDERR "mod_tag_approval query: $query\nmod_tag_approval args: ($operator,$approval,$term)\n";
@@ -470,8 +476,8 @@ sub mod_tag_approval {
 }
 
 sub add_tag_index {
-	my $term         = shift or return undef;
-	my $biblionumber = shift or return undef;
+	my $term         = shift or return;
+	my $biblionumber = shift or return;
 	my $query = "SELECT * FROM tags_index WHERE term = ? AND biblionumber = ?";
 	my $sth = C4::Context->dbh->prepare($query);
 	$sth->execute($term,$biblionumber);
@@ -484,37 +490,10 @@ sub add_tag_index {
 }
 
 sub get_tag {		# by tag_id
-	(@_) or return undef;
-	my $sth = C4::Context->dbh->prepare("$select_all WHERE tag_id = ?");
+	(@_) or return;
+    my $sth = C4::Context->dbh->prepare(TAG_SELECT . "WHERE tag_id = ?");
 	$sth->execute(shift);
 	return $sth->fetchrow_hashref;
-}
-
-sub rectify_weights {
-	my $dbh = C4::Context->dbh;
-	my $sth;
-	my $query = "
-	SELECT term,biblionumber,count(*) as count
-	FROM   tags_all
-	";
-	(@_) and $query .= " WHERE term =? ";
-	$query .= " GROUP BY term,biblionumber ";
-	$sth = $dbh->prepare($query);
-	if (@_) {
-		$sth->execute(shift);
-	} else {
-		$sth->execute();
-	}
-	my $results = $sth->fetchall_arrayref({}) or return undef;
-	my %tally = ();
-	foreach (@$results) {
-		_set_weight($_->{count},$_->{term},$_->{biblionumber});
-		$tally{$_->{term}} += $_->{count};
-	}
-	foreach (keys %tally) {
-		_set_weight_total($tally{$_},$_);
-	}
-	return ($results,\%tally);
 }
 
 sub increment_weights {
@@ -557,12 +536,12 @@ sub _set_weight {
 }
 
 sub add_tag {	# biblionumber,term,[borrowernumber,approvernumber]
-	my $biblionumber = shift or return undef;
-	my $term         = shift or return undef;
+	my $biblionumber = shift or return;
+	my $term         = shift or return;
 	my $borrowernumber = (@_) ? shift : 0;		# the user, default to kohaadmin
 	$term =~ s/^\s+//;
 	$term =~ s/\s+$//;
-	($term) or return undef;	# must be more than whitespace
+	($term) or return;	# must be more than whitespace
 	my $rows = get_tag_rows({biblionumber=>$biblionumber, borrowernumber=>$borrowernumber, term=>$term, limit=>1});
 	my $query = "INSERT INTO tags_all
 	(borrowernumber,biblionumber,term,date_created)
@@ -571,7 +550,7 @@ sub add_tag {	# biblionumber,term,[borrowernumber,approvernumber]
 							"add_tag query args: ($borrowernumber,$biblionumber,$term)\n";
 	if (scalar @$rows) {
 		$debug and carp "Duplicate tag detected.  Tag not added.";	
-		return undef;
+		return;
 	}
 	# add to tags_all regardless of approaval
 	my $sth = C4::Context->dbh->prepare($query);
@@ -594,12 +573,45 @@ sub add_tag {	# biblionumber,term,[borrowernumber,approvernumber]
 	}
 }
 
+# This takes a set of tags, as returned by C<get_approval_rows> and divides
+# them up into a number of "strata" based on their weight. This is useful
+# to display them in a number of different sizes.
+#
+# Usage:
+#   ($min, $max) = stratify_tags($strata, $tags);
+# $stratum: the number of divisions you want
+# $tags: the tags, as provided by get_approval_rows
+# $min: the minumum stratum value
+# $max: the maximum stratum value. This may be the same as $min if there
+# is only one weight. Beware of divide by zeros.
+# This will add a field to the tag called "stratum" containing the calculated
+# value.
+sub stratify_tags {
+    my ( $strata, $tags ) = @_;
+
+    my ( $min, $max );
+    foreach (@$tags) {
+        my $w = $_->{weight_total};
+        $min = $w if ( !defined($min) || $min > $w );
+        $max = $w if ( !defined($max) || $max < $w );
+    }
+
+    # normalise min to zero
+    $max = $max - $min;
+    my $orig_min = $min;
+    $min = 0;
+
+    # if min and max are the same, just make it 1
+    my $span = ( $strata - 1 ) / ( $max || 1 );
+    foreach (@$tags) {
+        my $w = $_->{weight_total};
+        $_->{stratum} = int( ( $w - $orig_min ) * $span );
+    }
+    return ( $min, $max );
+}
+
 1;
 __END__
-
-=head1 C4::Tags.pm - Support for user tagging of biblios.
-
-More verose debugging messages are sent in the presence of non-zero $ENV{"DEBUG"}.
 
 =head2 add_tag(biblionumber,term[,borrowernumber])
 

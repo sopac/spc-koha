@@ -135,12 +135,13 @@ foreach my $borrower(@$results[$from..$to-1]){
 
   my %row = (
     count => $index++,
-	%$borrower,
-	%{$categories_dislay{$$borrower{categorycode}}},
+    %$borrower,
+    (defined $categories_dislay{ $borrower->{categorycode} }?   %{ $categories_dislay{ $borrower->{categorycode} } }:()),
     overdues => $od,
     issues => $issue,
     odissue => "$od/$issue",
     fines =>  sprintf("%.2f",$fines),
+    branchname => $branches->{$borrower->{branchcode}}->{branchname},
     );
   push(@resultsdata, \%row);
 }

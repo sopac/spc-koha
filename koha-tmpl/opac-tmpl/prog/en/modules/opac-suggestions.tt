@@ -63,7 +63,9 @@ $.tablesorter.addParser({
             .click(function(){
               $("#myform").submit();
               return false;
-            });[% END %]
+            });
+            enableCheckboxActions();
+            [% END %]
        });
 
       function Check(f) {
@@ -152,7 +154,7 @@ $.tablesorter.addParser({
                     Search for:
                 </th>
                 <td>
-                    <input type="text" name="title" value="[% title %]" />
+                    <input type="text" name="title" value="[% title |html %]" />
                 </td>
                 <th>
                 Suggested by:

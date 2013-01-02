@@ -91,7 +91,7 @@ use C4::Search qw/FindDuplicate/;
 #needed for z3950 import:
 use C4::ImportBatch qw/GetImportRecordMarc SetImportRecordStatus/;
 
-my $input           = new CGI;
+our $input           = new CGI;
 my $booksellerid    = $input->param('booksellerid');	# FIXME: else ERROR!
 my $budget_id       = $input->param('budget_id') || 0;
 my $title           = $input->param('title');
@@ -99,8 +99,8 @@ my $author          = $input->param('author');
 my $publicationyear = $input->param('publicationyear');
 my $bookseller      = GetBookSellerFromId($booksellerid);	# FIXME: else ERROR!
 my $ordernumber          = $input->param('ordernumber') || '';
-my $biblionumber    = $input->param('biblionumber');
-my $basketno        = $input->param('basketno');
+our $biblionumber    = $input->param('biblionumber');
+our $basketno        = $input->param('basketno');
 my $suggestionid    = $input->param('suggestionid');
 my $close           = $input->param('close');
 my $uncertainprice  = $input->param('uncertainprice');
@@ -110,7 +110,7 @@ my $new = 'no';
 
 my $budget_name;
 
-my ( $template, $loggedinuser, $cookie, $userflags ) = get_template_and_user(
+our ( $template, $loggedinuser, $cookie, $userflags ) = get_template_and_user(
     {
         template_name   => "acqui/neworderempty.tmpl",
         query           => $input,
@@ -121,18 +121,18 @@ my ( $template, $loggedinuser, $cookie, $userflags ) = get_template_and_user(
     }
 );
 
-my $marcflavour = C4::Context->preference('marcflavour');
+our $marcflavour = C4::Context->preference('marcflavour');
 
 if(!$basketno) {
     my $order = GetOrder($ordernumber);
     $basketno = $order->{'basketno'};
 }
 
-my $basket = GetBasket($basketno);
+our $basket = GetBasket($basketno);
 my $contract = &GetContract($basket->{contractnumber});
 
 #simple parameters reading (all in one :-)
-my $params = $input->Vars;
+our $params = $input->Vars;
 my $listprice=0; # the price, that can be in MARC record if we have one
 if ( $ordernumber eq '' and defined $params->{'breedingid'}){
 #we want to import from the breeding reservoir (from a z3950 search)
@@ -281,8 +281,6 @@ if ($budget) {    # its a mod ..
     }
 } elsif(@{$budgets}){
     $CGIsort1 = GetAuthvalueDropbox(  @$budgets[0]->{'sort1_authcat'}, '' );
-}else{
-    $CGIsort1 = GetAuthvalueDropbox( '', '' );
 }
 
 # if CGIsort is successfully fetched, the use it
@@ -300,8 +298,6 @@ if ($budget) {
     }
 } elsif(@{$budgets}) {
     $CGIsort2 = GetAuthvalueDropbox(  @$budgets[0]->{sort2_authcat}, '' );
-}else{
-    $CGIsort2 = GetAuthvalueDropbox( '', '' );
 }
 
 if ($CGIsort2) {
@@ -335,6 +331,13 @@ $template->param(
     budget_name  => $budget_name
 ) if ($close);
 
+# get option values for gist syspref
+my @gst_values = map {
+    option => $_
+}, split( '\|', C4::Context->preference("gist") );
+
+my $cur = GetCurrency();
+
 $template->param(
     existing         => $biblionumber,
     ordernumber           => $ordernumber,
@@ -354,18 +357,21 @@ $template->param(
     suggestionid         => $suggestion->{suggestionid},
     surnamesuggestedby   => $suggestion->{surnamesuggestedby},
     firstnamesuggestedby => $suggestion->{firstnamesuggestedby},
-    biblionumber     => $biblionumber,
-    uncertainprice   => $data->{'uncertainprice'},
-    authorisedbyname => $borrower->{'firstname'} . " " . $borrower->{'surname'},
-    biblioitemnumber => $data->{'biblioitemnumber'},
-    discount_2dp     => sprintf( "%.2f",  $bookseller->{'discount'}) ,   # for display
-    discount         => $bookseller->{'discount'},
+    biblionumber         => $biblionumber,
+    uncertainprice       => $data->{'uncertainprice'},
+    authorisedbyname     => $borrower->{'firstname'} . " " . $borrower->{'surname'},
+    biblioitemnumber     => $data->{'biblioitemnumber'},
+    discount_2dp         => sprintf( "%.2f",  $bookseller->{'discount'} ) ,   # for display
+    discount             => $bookseller->{'discount'},
+    orderdiscount_2dp    => sprintf( "%.2f", $data->{'discount'} || 0 ),
+    orderdiscount        => $data->{'discount'},
     listincgst       => $bookseller->{'listincgst'},
     invoiceincgst    => $bookseller->{'invoiceincgst'},
     name             => $bookseller->{'name'},
     cur_active_sym   => $active_currency->{'symbol'},
     cur_active       => $active_currency->{'currency'},
     loop_currencies  => \@loop_currency,
+    currency_rate    => $cur->{rate},
     orderexists      => ( $new eq 'yes' ) ? 0 : 1,
     title            => $data->{'title'},
     author           => $data->{'author'},
@@ -379,19 +385,17 @@ $template->param(
     quantity         => $data->{'quantity'},
     quantityrec      => $data->{'quantity'},
     rrp              => $data->{'rrp'},
-    listprice        => sprintf("%.2f", $data->{'listprice'}||$data->{'price'}||$listprice),
-    total            => sprintf("%.2f", ($data->{'ecost'}||0)*($data->{'quantity'}||0) ),
-    ecost            => $data->{'ecost'},
-    unitprice        => sprintf("%.2f", $data->{'unitprice'}||0),
+    gst_values       => \@gst_values,
+    gstrate          => $data->{gstrate} ? $data->{gstrate}+0.0 : $bookseller->{gstrate} ? $bookseller->{gstrate}+0.0 : 0,
+    gstreg           => $bookseller->{'gstreg'},
+    listprice        => sprintf( "%.2f", $data->{listprice} || $data->{price} || $listprice),
+    total            => sprintf( "%.2f", ($data->{ecost} || 0) * ($data->{'quantity'} || 0) ),
+    ecost            => sprintf( "%.2f", $data->{ecost} || 0),
+    unitprice        => sprintf( "%.2f", $data->{unitprice} || 0),
     notes            => $data->{'notes'},
     publishercode    => $data->{'publishercode'},
     barcode_subfield => $barcode_subfield,
-    
     import_batch_id  => $import_batch_id,
-
-# CHECKME: gst-stuff needs verifing, mason.
-    gstrate          => $bookseller->{'gstrate'} // C4::Context->preference("gist") // 0,
-    gstreg           => $bookseller->{'gstreg'},
     (uc(C4::Context->preference("marcflavour"))) => 1
 );
 
@@ -447,7 +451,7 @@ sub MARCfindbreeding {
             if (    C4::Context->preference("z3950NormalizeAuthor")
                 and C4::Context->preference("z3950AuthorAuthFields") )
             {
-                my ( $tag, $subfield ) = GetMarcFromKohaField("biblio.author");
+                my ( $tag, $subfield ) = GetMarcFromKohaField("biblio.author", '');
 
 #                 my $summary = C4::Context->preference("z3950authortemplate");
                 my $auth_fields =

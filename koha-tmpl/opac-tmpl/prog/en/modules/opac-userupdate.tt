@@ -13,7 +13,7 @@
 
 <div id="userupdatecontainer" class="container">
 [% FOREACH BORROWER_INF IN BORROWER_INFO %]
-<h3><a href="/cgi-bin/koha/opac-user.pl">[% INCLUDE 'patron-title.inc' firstname = BORROWER_INF.firstname surname = BORROWER_INF.surname othernames = BORROWER_INF.othernames cardnumber = BORROWER_INF.cardnumber %]'s account</a> <img src="[% themelang %]../../images/caret.gif" width="16" height="16" alt="&gt;" border="0" /> Your personal details</h3>
+<h3><a href="/cgi-bin/koha/opac-user.pl">[% INCLUDE 'patron-title.inc' firstname = BORROWER_INF.firstname surname = BORROWER_INF.surname othernames = BORROWER_INF.othernames cardnumber = BORROWER_INF.cardnumber %]'s account</a> &#8674; Your personal details</h3>
 
 [% IF ( OPACPatronDetails ) %]
 <form action="/cgi-bin/koha/opac-userupdate.pl" method="get">
@@ -89,9 +89,9 @@
     [% FOREACH patron_attribute IN BORROWER_INF.patron_attributes %]
         <li><label>[% patron_attribute.description %]</label>
         [% IF ( patron_attribute.value_description ) %]
-            <input type="text"  disabled="disabled" readonly="readonly" value="[% patron_attribute.value_description %]" />
+            [% patron_attribute.value_description %]"
         [% ELSE %]
-            <input type="text"  disabled="disabled" readonly="readonly" value="[% patron_attribute.value %]" />
+            [% patron_attribute.value |html_line_break %]
         [% END %]
         </li>
     [% END %]

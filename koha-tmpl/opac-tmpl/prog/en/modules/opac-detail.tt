@@ -1,4 +1,6 @@
 [% USE KohaDates %]
+[% SET TagsShowEnabled = ( TagsEnabled && TagsShowOnDetail ) %]
+[% SET TagsInputEnabled = ( opacuserlogin && TagsEnabled && TagsInputOnDetail ) %]
 
 [% INCLUDE 'doc-head-open.inc' %][% IF ( LibraryNameTitle ) %][% LibraryNameTitle %][% ELSE %]Koha online[% END %] catalog &rsaquo; Details for: [% title |html %][% FOREACH subtitl IN subtitle %], [% subtitl.subfield |html %][% END %]
 [% INCLUDE 'doc-head-close.inc' %]
@@ -8,11 +10,13 @@
     <script type="text/javascript" src="https://apis.google.com/js/plusone.js">
       {lang: '[% lang %]'}
     </script>
+    <script type="text/javascript">!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
 [% END %]
 [% IF ( OpacStarRatings != 'disable' ) %]<script type="text/javascript" src="/opac-tmpl/prog/en/lib/jquery/plugins/jquery.rating.js"></script>
 <link rel="stylesheet" type="text/css" href="/opac-tmpl/prog/en/css/jquery.rating.css" />[% END %]
 
 [% IF ( OpacHighlightedWords ) %]<script type="text/javascript" src="[% themelang %]/lib/jquery/plugins/jquery.highlight-3.js"></script>[% END %]
+
 <script type="text/JavaScript" language="JavaScript">
 //<![CDATA[
 
@@ -46,24 +50,44 @@
 
      $(document).ready(function() { 
         $('#bibliodescriptions').tabs();
-[% IF ( opacuserlogin ) %][% IF ( loggedinusername ) %][% IF ( TagsEnabled ) %]$("#tagform").hide();
-        $("#addtagl").show();
-        $("#addtagl a").click(function(){
-            $("#addtagl").hide();
-            $("#tagform, #tagform a").show();
+
+[% IF ( TagsInputEnabled && loggedinusername ) %]
+        $(".tag_add").click(function(){
+            var thisid = $(this).attr("id");
+            thisid = thisid.replace("tag_add","");
+            $(this).hide();
+            $("#tagform"+thisid).show();
+            $("#newtag"+thisid).focus();
+            $("#newtag"+thisid+"_status").empty().hide();
             return false;
         });
-        $("#tagform a").click(function(){
-            $("#addtagl").show();
-            $("#tagform").hide();
+        $(".cancel_tag_add").click(function(){
+            var thisid = $(this).attr("id");
+            thisid = thisid.replace("cancel","");
+            $("#tagform"+thisid).hide();
+            $("#tag_add"+thisid).show();
+            $("#newtag"+thisid).val("");
+            $("#newtag"+thisid+"_status").empty().hide();
             return false;
-        });[% END %][% END %][% END %]
-        $("#holdingst").tablesorter({[% IF ( dateformat == 'metric' ) %]
+        });
+        $(".tagbutton").click(function(){
+            var thisid = $(this).attr("title");
+            var tag = $("#newtag"+thisid).val();
+            if (!tag || (tag == "")) {
+                alert(MSG_NO_TAG_SPECIFIED);
+                return false;
+            }
+            KOHA.Tags.add_tag_button(thisid, tag);
+            return false;
+        });
+[% END %]
+
+        $(".holdingst").tablesorter({[% IF ( dateformat == 'metric' ) %]
     dateFormat: 'uk',[% END %]
             widgets : ['zebra'],
             sortList: [[0,0]]
         });
-        [% IF ( query_desc ) %][% IF ( OpacHighlightedWords ) %]var query_desc = "[% query_desc |replace("'", "\'") |replace('"', '\"') |replace('\n', '\\n') |replace('\r', '\\r') %]";
+        [% IF ( query_desc ) %][% IF ( OpacHighlightedWords ) %]var query_desc = "[% query_desc |replace("'", "\'") |replace('\n', '\\n') |replace('\r', '\\r') |html %]";
             q_array = query_desc.split(" ");
             highlightOn();
             $("#highlight_toggle_on" ).hide().click(function() {highlightOn() ; return false;});
@@ -80,9 +104,6 @@
         [% IF ( NovelistSelectProfile ) %]
         novSelect.loadContentForISBN('[% normalized_isbn %]','[% NovelistSelectProfile %]', '[% NovelistSelectPassword %]', function(d){});
         [% END %]
-	[% IF ( opacuserlogin ) %][% IF ( loggedinusername ) %][% IF ( TagsEnabled ) %]
-        $(".tagbutton").click(KOHA.Tags.add_tag_button);[% END %][% END %][% END %]
-
 
     [% IF ( OpacBrowseResults && busc ) %]
         if (arrPagination.length > 0) {
@@ -292,9 +313,6 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
  });
 //]]>
 </script>
-[% IF ( opacuserlogin ) %][% IF ( loggedinusername ) %][% IF ( TagsEnabled ) %]<style type="text/css">
-    #addtagl { display: none; }
-</style>[% END %][% END %][% END %]
 <style type="text/css">
 .branch-info-tooltip {
   display: none;
@@ -359,12 +377,18 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
     </span>
 
     [% IF ( MARCAUTHORS ) %]
-    <span class="results_summary"><span class="label">Authors:</span>
-                [% FOREACH MARCAUTHOR IN MARCAUTHORS %]
-                [% FOREACH MARCAUTHOR_SUBFIELDS_LOO IN MARCAUTHOR.MARCAUTHOR_SUBFIELDS_LOOP %][% MARCAUTHOR_SUBFIELDS_LOO.separator %]<a title="‡[% MARCAUTHOR_SUBFIELDS_LOO.code %] [% MARCAUTHOR_SUBFIELDS_LOO.value %]" href="/cgi-bin/koha/opac-search.pl?q=[% FOREACH link_loo IN MARCAUTHOR_SUBFIELDS_LOO.link_loop %][% link_loo.operator |url %][% link_loo.limit |url %]:[% link_loo.link |url %][% END %]">[% MARCAUTHOR_SUBFIELDS_LOO.value %]</a>[% END %] 
-        [% UNLESS ( loop.last ) %]|
-[% END %]
-                [% END %]
+    <span class="results_summary"><span class="label">Additional authors:</span>
+        [% FOREACH MARCAUTHOR IN MARCAUTHORS %]
+            [% FOREACH MARCAUTHOR_SUBFIELDS_LOO IN MARCAUTHOR.MARCAUTHOR_SUBFIELDS_LOOP %]
+                [% MARCAUTHOR_SUBFIELDS_LOO.separator %]
+                <a title="‡[% MARCAUTHOR_SUBFIELDS_LOO.code %] [% MARCAUTHOR_SUBFIELDS_LOO.value %]"
+                    href="/cgi-bin/koha/opac-search.pl?q=[% FOREACH link_loo IN MARCAUTHOR_SUBFIELDS_LOO.link_loop %][% link_loo.operator |url %][% link_loo.limit |url %]:[% link_loo.link |url %][% END %]">[% MARCAUTHOR_SUBFIELDS_LOO.value %]</a>
+            [% END %]
+            [% IF (MARCAUTHOR.authoritylink) %]
+                <a class='authlink' href="/cgi-bin/koha/opac-authoritiesdetail.pl?authid=[% MARCAUTHOR.authoritylink %]"><img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png"></a>
+            [% END %]
+            [% UNLESS ( loop.last ) %]|[% END %]
+        [% END %]
     </span>
     [% END %]
 
@@ -418,12 +442,20 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
     [% END %]
 
     [% IF ( MARCSUBJCTS ) %]
-            <span class="results_summary"><span class="label">Subject(s):</span> 
-                [% FOREACH MARCSUBJCT IN MARCSUBJCTS %]
-                    [% FOREACH MARCSUBJECT_SUBFIELDS_LOO IN MARCSUBJCT.MARCSUBJECT_SUBFIELDS_LOOP %]
-                        [% MARCSUBJECT_SUBFIELDS_LOO.separator %]<a title="$[% MARCSUBJECT_SUBFIELDS_LOO.code %] [% MARCSUBJECT_SUBFIELDS_LOO.value %]" href="/cgi-bin/koha/opac-search.pl?q=[% FOREACH link_loo IN MARCSUBJECT_SUBFIELDS_LOO.link_loop %][% link_loo.operator |url %][% link_loo.limit |url %]:[% link_loo.link |url %][% END %]">[% MARCSUBJECT_SUBFIELDS_LOO.value %]</a>[% END %]
-        [% IF ( loop.last ) %][% ELSE %]|[% END %]
-                [% END %]</span>
+        <span class="results_summary">
+            <span class="label">Subject(s):</span>
+            [% FOREACH MARCSUBJCT IN MARCSUBJCTS %]
+                [% subjectsloop = loop %]
+                [% FOREACH SUBFIELD IN MARCSUBJCT.MARCSUBJECT_SUBFIELDS_LOOP %]
+                    [% SUBFIELD.separator %]
+                    <a title="$[% SUBFIELD.code %] [% SUBFIELD.value %]" href="/cgi-bin/koha/opac-search.pl?q=[% FOREACH link_loo IN SUBFIELD.link_loop %][% link_loo.operator |url %][% link_loo.limit |url %]:[% link_loo.link |url %][% END %]" onclick="showSubjects(this, [% subjectsloop.count %], [% loop.count %]); return false;">[% SUBFIELD.value %]</a>
+                [% END %]
+                [% IF (MARCSUBJCT.authoritylink) %]
+                    <a class="authlink" href="/cgi-bin/koha/opac-authoritiesdetail.pl?authid=[% MARCSUBJCT.authoritylink %]"><img style="vertical-align:middle" height="15" width="15" src="/opac-tmpl/prog/images/filefind.png" /></a>
+                [% END %]
+                [% UNLESS ( loop.last ) %] | [% END %]
+            [% END %]
+        </span>
     [% ELSE %]
     [% IF ( subjects ) %]<span class="results_summary"><span class="label">Subject(s):</span> [% FOREACH subject IN subjects %]<a href="/cgi-bin/koha/opac-search.pl?q=su:[% subject.subject |url %]">[% subject.subject %]</a> | [% END %]</span>[% END %]
     [% END %]
@@ -488,8 +520,7 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
 	</span>
 [% END %]
 
-[% IF ( TagsEnabled ) %]
-    [% IF ( TagsShowOnDetail ) %]
+[% IF ( TagsShowEnabled ) %]
         <div class="results_summary">
         [% IF ( TagLoop ) %]
         <span class="label">Tags from this library:</span>
@@ -500,28 +531,23 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
     [% END %]
         </div>
 [% END %]
-[% IF ( opacuserlogin ) %]
-  [% IF ( loggedinusername ) %]
-   [% IF ( TagsEnabled ) %]
-      [% IF ( TagsInputOnDetail ) %]
+[% IF ( TagsInputEnabled ) %]
       <div class="results_summary">
-        <span class="label" id="addtagl"><a href="#">Add</a></span>
-         <form name="tagform[% biblionumber %]" method="post" action="/cgi-bin/koha/opac-tags.pl" id="tagform">
-                <label for="newtag[% biblionumber %]">New:</label><input name="newtag[% biblionumber %]" id="newtag[% biblionumber %]" maxlength="100" />
+        [% IF ( loggedinusername ) %]
+            <a class="tag_add" id="tag_add[% biblionumber %]" href="#">Add</a>
+            <form id="tagform[% biblionumber %]" method="post" action="/cgi-bin/koha/opac-tags.pl" style="display:none;">
+                <label for="newtag[% biblionumber %]">New tag(s):</label>
+                <input name="newtag[% biblionumber %]" id="newtag[% biblionumber %]" maxlength="100" type="text"/>
                 <input name="tagbutton" class="input tagbutton" title="[% biblionumber %]" type="submit" value="Add" />
-                <a href="#">Cancel</a>
+                <a class="cancel_tag_add" id="cancel[% biblionumber %]" href="#">(done)</a>
             </form>
             <span id="newtag[% biblionumber %]_status" class="tagstatus" style="display:none;">
                 Tag status here.
             </span>
-            <br />
-            [% ELSE %]
-                <span id="login4tags" class="tagstatus">Log in to add tags.</span>
-            [% END %]
+        [% ELSE %]
+            <span id="login4tags">Log in to add tags.</span>
         [% END %]
         </div>
-    [% END %]
-   [% END %]
 [% END %]
 
         [% IF ( SyndeticsEnabled ) %][% IF ( SyndeticsSeries ) %][% IF ( SyndeticsSERIES1Exists ) %]
@@ -629,9 +655,12 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
 <div id="bibliodescriptions" class="toptabs">
 
 <ul>   
-[% IF ( defaulttab == 'holdings' ) %]<li id="tab_holdings" class="ui-tabs-selected">[% ELSE %]<li id="tab_holdings">[% END %]
-    <a href="#holdings">Holdings ( [% count %] )</a>
-</li>
+    [% IF ( defaulttab == 'holdings' ) %]<li id="tab_holdings" class="ui-tabs-selected">[% ELSE %]<li id="tab_holdings">[% END %]
+        <a href="#holdings">[% IF SeparateHoldings %][% LoginBranchname %] holdings[% ELSE %]Holdings[% END %] ( [% itemloop.size || 0 %] )</a>
+    </li>
+    [% IF (SeparateHoldings) %]
+        <li><a href="#otherholdings">Other holdings ( [% otheritemloop.size || 0 %] )</a></li>
+    [% END %]
 <li id="tab_descriptions"> <a href="#descriptions">Title notes</a></li>
 [% IF ( SYNDETICS_TOC ) %]
     <li id="tab_toc"> <a href="#toc">TOC</a></li>
@@ -681,19 +710,20 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
     <li id="tab_editions"><a href="#editions">Editions</a></li>
 [% END %][% END %]
 
-[% IF ( Babeltheque ) %]
-    <li id="tab_babeltheque"><a href="#babeltheque">Babelthèque</a></li>
-[% END %]
-
 [% IF ( serialcollection ) %]
     [% IF ( defaulttab == 'serialcollection' ) %]<li id="tab_serialcollection" class="ui-tabs-selected">[% ELSE %]<li id="tab_serialcollection">[% END %]
         <a href="#serialcollection">Serial collection</a>
     </li>
 [% END %]
 
-[% IF ( OPACLocalCoverImages ) %][% IF ( localimages ) %]
+[% IF ( OPACLocalCoverImages && localimages.size ) %]
     <li id="tab_images"><a href="#images">Images</a></li>
+[% END %]
+
+[% IF ( HTML5MediaEnabled ) %][% IF ( HTML5MediaSets ) %]
+    <li id="tab_html5media"><a href="#html5media">Play media</a></li>
 [% END %][% END %]
+
 </ul>
 
 [% IF ( serialcollection ) %]
@@ -701,8 +731,9 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
     <table id="serialcollectiont">
 	<thead>
 	    <tr>
-		<th id="serial_library">Library</th>
-		<th id="seral_collection">Serial collection</th>
+            <th id="serial_library">Library</th>
+            <th id="serial_collection">Serial collection</th>
+            <th id="serial_itemcallnumber">Item callnumber</th>
 	    </tr>
 	</thead>
 	<tbody>
@@ -710,6 +741,7 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
 	    <tr>
 		<td>[% serialcollection.branch %]</td>
 		<td>[% serialcollection.text %]</td>
+        <td>[% serialcollection.itemcallnumber %]</td>
 	    </tr>
 	[% END %]
 	</tbody>
@@ -717,69 +749,13 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
 </div>
 [% END %]
 
+
 <div id="holdings">
-[% IF ( count ) %]
+[% IF ( itemloop.size ) %]
     [% IF ( lotsofitems ) %]
 	<p>This record has many physical items. <a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% biblionumber %]&amp;viewallitems=1#holdings">Click here to view them all.</a></p>
     [% ELSE %]
-    <table id="holdingst">
-        <thead><tr>
-            [% IF ( item_level_itypes ) %]<th id="item_itemtype">Item type</th>[% END %]
-            <th id="item_location">Location</th>
-            [% IF ( itemdata_ccode ) %]<th id="item_ccode">Collection</th>[% END %]
-            <th id="item_callnumber">Call number</th>
-            [% IF ( itemdata_enumchron ) %]<th id="item_enumchron">Vol info</th>[% END %]
-            [% IF ( itemdata_uri ) %]<th id="item_url">url</th>[% END %]
-            [% IF ( itemdata_copynumber ) %]<th id="item_copy">Copy</th>[% END %]
-            <th id="item_status">Status</th>
-            [% IF ( itemdata_itemnotes ) %]<th id="item_notes">Notes</th>[% END %]
-            <th id="item_datedue">Date due</th>
-            [% IF ( OPACShowBarcode ) %]<th>Barcode</th>[% END %]
-        [% IF holds_count.defined %]
-            <th>Item holds</th>
-        [% ELSIF show_priority %]
-            <th>Item hold queue priority</th>
-        [% END %]
-        </tr></thead>
-	    <tbody>[% FOREACH ITEM_RESULT IN ITEM_RESULTS %]
-	    <tr>[% IF ( item_level_itypes ) %]<td>[% UNLESS ( noItemTypeImages ) %][% IF ( ITEM_RESULT.imageurl ) %]<img src="[% ITEM_RESULT.imageurl %]" title="[% ITEM_RESULT.description %]" alt="[% ITEM_RESULT.description %]" />[% END %][% END %] [% ITEM_RESULT.description %]</td>[% END %]
-		<td>
-    [% UNLESS ( singleBranchMode ) %]
-        <span class="[% ITEM_RESULT.branch_opac_info ? 'branch-info-tooltip-trigger' : '' %]">
-        [% IF ( ITEM_RESULT.branchurl ) %]
-        <a href="[% ITEM_RESULT.branchurl %]">[% ITEM_RESULT.branchname %]</a>
-        [% ELSE %]
-        [% ITEM_RESULT.branchname %]
-        [% END %]
-        </span>
-        <div class="branch-info-tooltip">[% ITEM_RESULT.branch_opac_info %]</div>
-    [% END %]
-    <span class="shelvingloc">[% ITEM_RESULT.location_description %]</span>
-    </td>
-		[% IF ( itemdata_ccode ) %]<td>[% ITEM_RESULT.ccode %]</td>[% END %]
-        <td>[% IF ( ITEM_RESULT.itemcallnumber ) %] [% ITEM_RESULT.itemcallnumber %][% IF ( OPACShelfBrowser ) %] (<a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% ITEM_RESULT.biblionumber %]&amp;shelfbrowse_itemnumber=[% ITEM_RESULT.itemnumber %]#shelfbrowser">Browse shelf</a>)[% END %][% END %]</td>
-		[% IF ( itemdata_enumchron ) %]<td>[% ITEM_RESULT.enumchron %]</td>[% END %]
-		[% IF ( itemdata_uri ) %]<td><a href="[% ITEM_RESULT.uri %]">[% ITEM_RESULT.uri %]</a></td>[% END %]
-		[% IF ( itemdata_copynumber ) %]<td>[% ITEM_RESULT.copynumber %]</td>[% END %]
-		<td>[% INCLUDE 'item-status.inc' item = ITEM_RESULT %]</td>
-		[% IF ( itemdata_itemnotes ) %]<td>[% ITEM_RESULT.itemnotes %]</td>[% END %]
-        <td>[% ITEM_RESULT.datedue | $KohaDates %]</td>
-        [% IF ( OPACShowBarcode ) %]<td>[% ITEM_RESULT.barcode %]</td>[% END %]
-        [% IF holds_count.defined || show_priority %]
-        <td>
-            [% IF holds_count.defined %] [% ITEM_RESULT.holds_count %] [% END %]
-            [% IF ITEM_RESULT.priority %]
-                [% IF holds_count.defined %]
-                (priority [% ITEM_RESULT.priority %])
-                [% ELSE %]
-                [% ITEM_RESULT.priority %]
-                [% END %]
-            [% END %]
-                </td>
-        [% END %]
-	    </tr>
-	    [% END %]</tbody>
-	</table>
+        [% INCLUDE items_table items=itemloop tab="holdings" %]
     [% END %]
     [% IF holds_count.defined || priority %]
     <div id="bib_holds">
@@ -805,65 +781,20 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
     [% END %]
 [% END %]
 
-[% IF ( OpenOPACShelfBrowser ) %]
-<div id="shelfbrowser">
-<h5 style="text-align: center;">[% IF ( starting_homebranch ) %]Browsing [% starting_homebranch %] Shelves[% END %][% IF ( starting_location ) %], Shelving location: [% starting_location %][% END %][% IF ( starting_ccode ) %], Collection code: [% starting_ccode %][% END %] <a style="font-size: 75%;" href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% biblionumber %]">Close shelf browser</a></h5>
-
-        
-        <table><tr>
-        <td rowspan="2" style="width:20px;"><a style="height: 10em;" href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% IF ( shelfbrowser_prev_biblionumber ) %][% shelfbrowser_prev_biblionumber %][% ELSE %][% biblionumber %][% END %]&amp;shelfbrowse_itemnumber=[% shelfbrowser_prev_itemnumber %]#shelfbrowser"><img src="/opac-tmpl/prog/images/browse-prev.gif" alt="Previous" border="0" /></a></td>
-[% FOREACH PREVIOUS_SHELF_BROWS IN PREVIOUS_SHELF_BROWSE %]
-        <td><a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% PREVIOUS_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% PREVIOUS_SHELF_BROWS.itemnumber %]#shelfbrowser">
-    [% IF ( OPACAmazonCoverImages ) %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_isbn ) %]<img border="0" src="http://images.amazon.com/images/P/[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %].01._AA75_PU_PU-5_.jpg" alt="" />[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
-    [% IF ( SyndeticsEnabled ) %][% IF ( SyndeticsCoverImages ) %][% IF ( content_identifier_exists ) %]
-    [% IF ( using_https ) %]
-    <img border="0" src="https://secure.syndetics.com/index.aspx?isbn=[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% PREVIOUS_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% PREVIOUS_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />
-    [% ELSE %]<img border="0" src="http://www.syndetics.com/index.aspx?isbn=[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% PREVIOUS_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% PREVIOUS_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />[% END %]
-    [% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %][% END %]
-    [% IF ( GoogleJackets ) %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_isbn ) %]<div style="block" title="[% PREVIOUS_SHELF_BROWS.biblionumber |url %]" class="[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]" id="gbs-thumbnail-preview[% loop.count %]"></div>[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
-    [% IF ( BakerTaylorEnabled ) %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_isbn ) %]
-    <img alt="See Baker &amp; Taylor" src="[% BakerTaylorImageURL |html %][% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]" />[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
-
-</a></td>
-[% END %]
-
-[% FOREACH NEXT_SHELF_BROWS IN NEXT_SHELF_BROWSE %]
-       <td><a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% NEXT_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% NEXT_SHELF_BROWS.itemnumber %]#shelfbrowser">
-
-    [% IF ( OPACAmazonCoverImages ) %][% IF ( NEXT_SHELF_BROWS.browser_normalized_isbn ) %]
-    <img border="0" src="http://images.amazon.com/images/P/[% NEXT_SHELF_BROWS.browser_normalized_isbn %].01._AA75_PU_PU-5_.jpg" alt="" />[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
-
-	[% IF ( SyndeticsEnabled ) %][% IF ( SyndeticsCoverImages ) %][% IF ( content_identifier_exists ) %]
-    [% IF ( using_https ) %]
-    <img border="0" src="https://secure.syndetics.com/index.aspx?isbn=[% NEXT_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( NEXT_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% NEXT_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( NEXT_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% NEXT_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />
-    [% ELSE %]<img border="0" src="http://www.syndetics.com/index.aspx?isbn=[% NEXT_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( NEXT_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% NEXT_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( NEXT_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% NEXT_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />[% END %]
-    [% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %][% END %]
-
-    [% IF ( GoogleJackets ) %][% IF ( NEXT_SHELF_BROWS.browser_normalized_isbn ) %]<div style="block" title="[% NEXT_SHELF_BROWS.biblionumber |url %]" class="[% NEXT_SHELF_BROWS.browser_normalized_isbn %]" id="gbs-thumbnail-preview[% loop.count %]"></div>[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
-    [% IF ( BakerTaylorEnabled ) %][% IF ( NEXT_SHELF_BROWS.browser_normalized_isbn ) %]
-    <img alt="See Baker &amp; Taylor" src="[% BakerTaylorImageURL |html %][% NEXT_SHELF_BROWS.browser_normalized_isbn %]" />[% ELSE %]<span class="no-image">No cover image available</span>[% END %][% END %]
-
-</a></td>
-[% END %]
-<td rowspan="2" style="width:20px;"><a style="height: 10em;" href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% IF ( shelfbrowser_next_biblionumber ) %][% shelfbrowser_next_biblionumber %][% ELSE %][% biblionumber %][% END %]&amp;shelfbrowse_itemnumber=[% shelfbrowser_next_itemnumber %]#shelfbrowser"><img src="/opac-tmpl/prog/images/browse-next.gif" alt="Next" border="0" /></a></td>
-</tr>
-
-<tr>
-[% FOREACH PREVIOUS_SHELF_BROWS IN PREVIOUS_SHELF_BROWSE %]
-<td class="top">[% PREVIOUS_SHELF_BROWS.itemcallnumber %]<a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% PREVIOUS_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% PREVIOUS_SHELF_BROWS.itemnumber %]#shelfbrowser">[% PREVIOUS_SHELF_BROWS.title |html %]</a></td>
-[% END %]
-
-[% FOREACH NEXT_SHELF_BROWS IN NEXT_SHELF_BROWSE %]
-       <td class="top">[% NEXT_SHELF_BROWS.itemcallnumber %]<a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% NEXT_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% NEXT_SHELF_BROWS.itemnumber %]#shelfbrowser">[% NEXT_SHELF_BROWS.title |html %]</a></td>
-[% END %]
-</tr>
-</table>
-        
-</div>
-[% END %]
+[% INCLUDE shelfbrowser tab='holdings' %]
 <br clear="all" />
 </div>
 
+[% IF (SeparateHoldings) %]
+    <div id="otherholdings">
+        [% IF (otheritemloop.size) %]
+            [% INCLUDE items_table items=otheritemloop tab="otherholdings" %]
+        [% ELSE %]
+            No other items.
+        [% END %]
+        [% INCLUDE shelfbrowser tab='otherholdings' %]
+    </div>
+[% END %]
 
 <div id="descriptions">
 <div class="content_set">
@@ -965,6 +896,8 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
     [% FOREACH subscription IN subscriptions %]
     [% IF ( subscription.branchname ) %]<h3>At library: [% subscription.branchname %]</h3>[% ELSE %]
     [% IF ( subscription.branchcode ) %]<h3>At library: [% subscription.branchcode %]</h3>[% END %][% END %]
+    [% IF ( subscription.closed ) %]<p>This subscription is closed.</p>[% END %]
+    <span style="display:none;"> [% IF ( subscription.callnumber ) %]<p>Callnumber: [% subscription.callnumber %]</p>[% END %]</span>
     [% IF ( subscription.subscriptionnotes ) %]<p>[% subscription.subscriptionnotes FILTER html_line_break %] </p>[% END %]
     <p>Subscription from: [% subscription.histstartdate | $KohaDates %] to:[% IF ( subscription.histenddate ) %] [% subscription.histenddate | $KohaDates %] [% ELSE %] now (current)[% END %]</p>
     [% IF ( subscription.missinglist ) %]<p>Missing issues: [% subscription.missinglist %] </p>[% END %]
@@ -1126,7 +1059,20 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
 </table>
 </div>[% END %][% END %]
 
-[% IF ( OPACLocalCoverImages ) %]
+[% IF ( HTML5MediaEnabled ) %]
+<div id="html5media">
+        <p>
+        <[% HTML5MediaParent %] controls preload=none>
+          [% FOREACH HTML5MediaSet IN HTML5MediaSets %]
+            <[% HTML5MediaSet.child  %] src="[% HTML5MediaSet.srcblock %]"[% HTML5MediaSet.typeblock %] />
+          [% END %]
+            [[% HTML5MediaParent %] tag not supported by your browser.]
+        </[% HTML5MediaParent %]>
+        </p>
+</div>
+[% END %]
+
+[% IF ( OPACLocalCoverImages && localimages.size ) %]
 <div id="images">
 <p>Click on an image to view it in the image viewer</p>
 [% FOREACH image IN localimages %]
@@ -1200,14 +1146,14 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
 [% END %]
 
 [% IF ( SocialNetworks ) %]
-    <div class="social_networks">
+    <div id="social_networks">
         <span>Share</span>
-        <a href="http://www.facebook.com/sharer.php?u=[% current_url |url %]&amp;t=[% title |url %]" title="Share on Facebook"><img alt="Share on Facebook" src="/opac-tmpl/prog/images/socnet/facebook16.png" /></a>
-        <a href="http://twitter.com/share" title="Share on Twitter"><img alt="Share on Twitter" src="/opac-tmpl/prog/images/socnet/twitter16.png" /></a>
-        <a href="http://www.linkedin.com/shareArticle?mini=true&amp;url=[% current_url |url %]&amp;title=[% title |url %]" title="Share on LinkedIn"><img alt="Share on LinkedIn" src="/opac-tmpl/prog/images/socnet/linkedin16.png" /></a>
-        <a href="http://www.delicious.com/save?url=[% current_url |url %]&amp;title=[% title |url %]" title="Share on Delicious"><img alt="Share on Delicious" src="/opac-tmpl/prog/images/socnet/delicious16.gif" /></a>
-        <g:plusone size="small"></g:plusone>
-        <a href="mailto:?subject=[% title %]&amp;body=[% title %] ([% current_url |url %])" title="Share by email"><img alt="Share by email" src="/opac-tmpl/prog/images/socnet/mailto16.png" /></a>
+        <div><a id="facebook" href="http://www.facebook.com/sharer.php?u=[% current_url |url %]&amp;t=[% title |url %]" title="Share on Facebook">Facebook</a></div>
+        <div><a id="linkedin" href="http://www.linkedin.com/shareArticle?mini=true&amp;url=[% current_url |url %]&amp;title=[% title |url %]" title="Share on LinkedIn">LinkedIn</a></div>
+        <div><a id="delicious" href="http://www.delicious.com/save?url=[% current_url |url %]&amp;title=[% title |url %]" title="Share on Delicious">Delicious</a></div>
+        <div><a id="email" href="mailto:?subject=[% title |url %]&amp;body=[% title |url %] ([% current_url |url %])" title="Share by email">Email</a></div>
+        <div><g:plusone size="small" annotation="none"></g:plusone></div>
+        <div><a id="twitter" href="https://twitter.com/share" class="twitter-share-button" data-count="none" data-text="[% title %]" data-lang="[% lang %]">Tweet</a></div>
     </div>
 [% END %]
 
@@ -1240,3 +1186,194 @@ YAHOO.util.Event.onContentReady("furtherm", function () {
 [% END %]
 
 [% INCLUDE 'opac-bottom.inc' %]
+
+[%# End of template %]
+
+[% BLOCK items_table %]
+    <table class="holdingst">
+        <thead><tr>
+            [% IF ( item_level_itypes ) %]<th id="item_itemtype">Item type</th>[% END %]
+            <th id="item_location">Location</th>
+            [% IF ( itemdata_ccode ) %]<th id="item_ccode">Collection</th>[% END %]
+            <th id="item_callnumber">Call number</th>
+            [% IF ( itemdata_enumchron ) %]<th id="item_enumchron">Vol info</th>[% END %]
+            [% IF ( itemdata_uri ) %]<th id="item_url">url</th>[% END %]
+            [% IF ( itemdata_copynumber ) %]<th id="item_copy">Copy</th>[% END %]
+            <th id="item_status">Status</th>
+            [% IF ( itemdata_itemnotes ) %]<th id="item_notes">Notes</th>[% END %]
+            <th id="item_datedue">Date due</th>
+            [% IF ( OPACShowBarcode ) %]<th>Barcode</th>[% END %]
+        [% IF holds_count.defined %]
+            <th>Item holds</th>
+        [% ELSIF show_priority %]
+            <th>Item hold queue priority</th>
+        [% END %]
+        </tr></thead>
+	    <tbody>[% FOREACH ITEM_RESULT IN items %]
+      <tr>[% IF ( item_level_itypes ) %]<td class="itype">[% UNLESS ( noItemTypeImages ) %][% IF ( ITEM_RESULT.imageurl ) %]<img src="[% ITEM_RESULT.imageurl %]" title="[% ITEM_RESULT.description %]" alt="[% ITEM_RESULT.description %]" />[% END %][% END %] [% ITEM_RESULT.description %]</td>[% END %]
+             <td class="location">
+    [% UNLESS ( singleBranchMode ) %]
+        <span class="[% ITEM_RESULT.branch_opac_info ? 'branch-info-tooltip-trigger' : '' %]">
+        [% IF ( ITEM_RESULT.branchurl ) %]
+        <a href="[% ITEM_RESULT.branchurl %]">[% ITEM_RESULT.branchname %]</a>
+        [% ELSE %]
+        [% ITEM_RESULT.branchname %]
+        [% END %]
+        </span>
+        <div class="branch-info-tooltip">[% ITEM_RESULT.branch_opac_info %]</div>
+    [% END %]
+    <span class="shelvingloc">[% ITEM_RESULT.location_description %]</span>
+    </td>
+            [% IF ( itemdata_ccode ) %]<td class="collection">[% ITEM_RESULT.ccode %]</td>[% END %]
+        <td class="call_no">[% IF ( ITEM_RESULT.itemcallnumber ) %] [% ITEM_RESULT.itemcallnumber %][% IF ( OPACShelfBrowser ) %] (<a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% ITEM_RESULT.biblionumber %]&amp;shelfbrowse_itemnumber=[% ITEM_RESULT.itemnumber %]#[% tab %]">Browse shelf</a>)[% END %][% END %]</td>
+            [% IF ( itemdata_enumchron ) %]<td class="vol_info">[% ITEM_RESULT.enumchron %]</td>[% END %]
+          [% IF ( itemdata_uri ) %]<td class="url"><a href="[% ITEM_RESULT.uri %]">[% ITEM_RESULT.uri %]</a></td>[% END %]
+               [% IF ( itemdata_copynumber ) %]<td class="copynumber">[% ITEM_RESULT.copynumber %]</td>[% END %]
+              <td class="status">[% INCLUDE 'item-status.inc' item = ITEM_RESULT %]</td>
+             [% IF ( itemdata_itemnotes ) %]<td class="notes">[% ITEM_RESULT.itemnotes %]</td>[% END %]
+        <td class="date_due">[% ITEM_RESULT.datedue | $KohaDates %]</td>
+        [% IF ( OPACShowBarcode ) %]<td class="barcode">[% ITEM_RESULT.barcode %]</td>[% END %]
+        [% IF holds_count.defined || show_priority %]
+        <td class="holds_count">
+            [% IF holds_count.defined %] [% ITEM_RESULT.holds_count %] [% END %]
+            [% IF ITEM_RESULT.priority %]
+                [% IF holds_count.defined %]
+                (priority [% ITEM_RESULT.priority %])
+                [% ELSE %]
+                [% ITEM_RESULT.priority %]
+                [% END %]
+            [% END %]
+                </td>
+        [% END %]
+	    </tr>
+	    [% END %]</tbody>
+	</table>
+[% END %][%# end of items_table block %]
+
+[% BLOCK shelfbrowser %]
+    [% IF ( OpenOPACShelfBrowser and shelfbrowser_tab == tab) %]
+        <div id="shelfbrowser">
+            <h5 style="text-align: center;">
+                [% IF ( starting_homebranch ) %]Browsing [% starting_homebranch %] Shelves[% END %]
+                [% IF ( starting_location ) %], Shelving location: [% starting_location %][% END %]
+                [% IF ( starting_ccode ) %], Collection code: [% starting_ccode %][% END %]
+                <a style="font-size: 75%;" href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% biblionumber %]">Close shelf browser</a>
+            </h5>
+
+            <table>
+                <tr>
+                    <td rowspan="2" style="width:20px;">
+                        <div id="browser_previous">
+                            <a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% IF ( shelfbrowser_prev_biblionumber ) %][% shelfbrowser_prev_biblionumber %][% ELSE %][% biblionumber %][% END %]&amp;shelfbrowse_itemnumber=[% shelfbrowser_prev_itemnumber %]#shelfbrowser">Previous</a>
+                        </div>
+                    </td>
+                    [% FOREACH PREVIOUS_SHELF_BROWS IN PREVIOUS_SHELF_BROWSE %]
+                        <td>
+                            <a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% PREVIOUS_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% PREVIOUS_SHELF_BROWS.itemnumber %]#shelfbrowser">
+                                [% IF ( OPACAmazonCoverImages ) %]
+                                    [% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_isbn ) %]
+                                        <img border="0" src="http://images.amazon.com/images/P/[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %].01._AA75_PU_PU-5_.jpg" alt="" />
+                                    [% ELSE %]
+                                        <span class="no-image">No cover image available</span>
+                                    [% END %]
+                                [% END %]
+                                [% IF ( SyndeticsEnabled ) %]
+                                    [% IF ( SyndeticsCoverImages ) %]
+                                        [% IF ( content_identifier_exists ) %]
+                                            [% IF ( using_https ) %]
+                                                <img border="0" src="https://secure.syndetics.com/index.aspx?isbn=[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% PREVIOUS_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% PREVIOUS_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />
+                                            [% ELSE %]
+                                                <img border="0" src="http://www.syndetics.com/index.aspx?isbn=[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% PREVIOUS_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% PREVIOUS_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />
+                                            [% END %]
+                                        [% ELSE %]
+                                            <span class="no-image">No cover image available</span>
+                                        [% END %]
+                                    [% END %]
+                                [% END %]
+                                [% IF ( GoogleJackets ) %]
+                                    [% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_isbn ) %]
+                                        <div style="block" title="[% PREVIOUS_SHELF_BROWS.biblionumber |url %]" class="[% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]" id="gbs-thumbnail-preview[% loop.count %]"></div>
+                                    [% ELSE %]
+                                        <span class="no-image">No cover image available</span>
+                                    [% END %]
+                                [% END %]
+                                [% IF ( BakerTaylorEnabled ) %]
+                                    [% IF ( PREVIOUS_SHELF_BROWS.browser_normalized_isbn ) %]
+                                        <img alt="See Baker &amp; Taylor" src="[% BakerTaylorImageURL |html %][% PREVIOUS_SHELF_BROWS.browser_normalized_isbn %]" />
+                                    [% ELSE %]
+                                        <span class="no-image">No cover image available</span>
+                                    [% END %]
+                                [% END %]
+                            </a>
+                        </td>
+                    [% END %]
+
+                    [% FOREACH NEXT_SHELF_BROWS IN NEXT_SHELF_BROWSE %]
+                        <td>
+                            <a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% NEXT_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% NEXT_SHELF_BROWS.itemnumber %]#shelfbrowser">
+                                [% IF ( OPACAmazonCoverImages ) %]
+                                    [% IF ( NEXT_SHELF_BROWS.browser_normalized_isbn ) %]
+                                        <img border="0" src="http://images.amazon.com/images/P/[% NEXT_SHELF_BROWS.browser_normalized_isbn %].01._AA75_PU_PU-5_.jpg" alt="" />
+                                    [% ELSE %]
+                                        <span class="no-image">No cover image available</span>
+                                    [% END %]
+                                [% END %]
+
+                                [% IF ( SyndeticsEnabled ) %]
+                                    [% IF ( SyndeticsCoverImages ) %]
+                                        [% IF ( content_identifier_exists ) %]
+                                            [% IF ( using_https ) %]
+                                                <img border="0" src="https://secure.syndetics.com/index.aspx?isbn=[% NEXT_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( NEXT_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% NEXT_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( NEXT_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% NEXT_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />
+                                            [% ELSE %]
+                                                <img border="0" src="http://www.syndetics.com/index.aspx?isbn=[% NEXT_SHELF_BROWS.browser_normalized_isbn %]/SC.GIF&amp;client=[% SyndeticsClientCode %][% IF ( NEXT_SHELF_BROWS.browser_normalized_upc ) %]&amp;upc=[% NEXT_SHELF_BROWS.browser_normalized_upc %][% END %][% IF ( NEXT_SHELF_BROWS.browser_normalized_oclc ) %]&amp;oclc=[% NEXT_SHELF_BROWS.browser_normalized_oclc %][% END %]&amp;type=xw10" alt="" />
+                                            [% END %]
+                                        [% ELSE %]
+                                            <span class="no-image">No cover image available</span>
+                                        [% END %]
+                                    [% END %]
+                                [% END %]
+
+                                [% IF ( GoogleJackets ) %]
+                                    [% IF ( NEXT_SHELF_BROWS.browser_normalized_isbn ) %]
+                                        <div style="block" title="[% NEXT_SHELF_BROWS.biblionumber |url %]" class="[% NEXT_SHELF_BROWS.browser_normalized_isbn %]" id="gbs-thumbnail-preview[% loop.count %]"></div>
+                                    [% ELSE %]
+                                        <span class="no-image">No cover image available</span>
+                                    [% END %]
+                                [% END %]
+                                [% IF ( BakerTaylorEnabled ) %]
+                                    [% IF ( NEXT_SHELF_BROWS.browser_normalized_isbn ) %]
+                                        <img alt="See Baker &amp; Taylor" src="[% BakerTaylorImageURL |html %][% NEXT_SHELF_BROWS.browser_normalized_isbn %]" />
+                                    [% ELSE %]
+                                        <span class="no-image">No cover image available</span>
+                                    [% END %]
+                                [% END %]
+                            </a>
+                        </td>
+                    [% END %]
+
+                    <td rowspan="2">
+                        <div id="browser_next">
+                            <a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% IF ( shelfbrowser_next_biblionumber ) %][% shelfbrowser_next_biblionumber %][% ELSE %][% biblionumber %][% END %]&amp;shelfbrowse_itemnumber=[% shelfbrowser_next_itemnumber %]#shelfbrowser">Next</a>
+                        </div>
+                    </td>
+                </tr>
+
+                <tr>
+                    [% FOREACH PREVIOUS_SHELF_BROWS IN PREVIOUS_SHELF_BROWSE %]
+                        <td class="top">
+                            [% PREVIOUS_SHELF_BROWS.itemcallnumber %]
+                            <a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% PREVIOUS_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% PREVIOUS_SHELF_BROWS.itemnumber %]#shelfbrowser">[% PREVIOUS_SHELF_BROWS.title |html %]</a>
+                        </td>
+                    [% END %]
+
+                    [% FOREACH NEXT_SHELF_BROWS IN NEXT_SHELF_BROWSE %]
+                        <td class="top" style="width:20px;">
+                            [% NEXT_SHELF_BROWS.itemcallnumber %]
+                            <a href="/cgi-bin/koha/opac-detail.pl?biblionumber=[% NEXT_SHELF_BROWS.biblionumber %]&amp;shelfbrowse_itemnumber=[% NEXT_SHELF_BROWS.itemnumber %]#shelfbrowser">[% NEXT_SHELF_BROWS.title |html %]</a>
+                        </td>
+                    [% END %]
+                </tr>
+            </table>
+        </div>
+    [% END %]
+[% END %][%# end of shelfbrowser block %]

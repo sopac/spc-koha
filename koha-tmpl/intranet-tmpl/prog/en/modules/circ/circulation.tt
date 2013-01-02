@@ -1,5 +1,6 @@
 [% USE KohaDates %]
 [% INCLUDE 'doc-head-open.inc' %]
+[% SET destination = "circ" %]
 <title>Koha &rsaquo; Circulation
 [% IF borrowernumber %]
   &rsaquo; Checking out to [% INCLUDE 'patron-title.inc' invert_name = 1 %]
@@ -82,6 +83,16 @@ var allcheckboxes = $(".checkboxed");
 		$(allcheckboxes).unCheckCheckboxes(":input[name*=barcodes]"); return false;
 	});
 
+    $("#CheckAllexports").click(function(){
+        $(".checkboxed").checkCheckboxes(":input[name*=biblionumbers]");
+        $(".checkboxed").unCheckCheckboxes(":input[name*=items]");
+        return false;
+    });
+    $("#CheckNoexports").click(function(){
+        $(".checkboxed").unCheckCheckboxes(":input[name*=biblionumbers]");
+        return false;
+    });
+
     $("#relrenew_all").click(function(){
         $(allcheckboxes).checkCheckboxes(":input[name*=items]");
         $(allcheckboxes).unCheckCheckboxes(":input[name*=barcodes]");
@@ -120,7 +131,7 @@ var allcheckboxes = $(".checkboxed");
                     $(this).removeAttr("checked");
                 } else {
                     $(this).attr("checked","checked");
-                  //  radioCheckBox($(this));
+                    radioCheckBox($(this));
                 }
            });
         }
@@ -144,17 +155,74 @@ var allcheckboxes = $(".checkboxed");
 		$("#add_message_form").show();
 	 });
 
-     $("input.radio").click(function(){
+    $("input.radio").click(function(){
         radioCheckBox($(this));
-     });
-    $("#newduedate").datepicker({ minDate: 1 }); // require that renewal date is after today
-    $("#duedatespec").datetimepicker({
-        onSelect: function(dateText, inst) { $("#barcode").focus(); },
+    });
+    $("#exportmenuc").empty();
+    initExportButton();
+
+    $("#newduedate").datetimepicker({
+        minDate: 1, // require that renewal date is after today
         hour: 23,
-        minute: 59,
+        minute: 59
+    });
+    $("#duedatespec").datetimepicker({
+        onClose: function(dateText, inst) { $("#barcode").focus(); },
+        hour: 23,
+        minute: 59
     });
 
  });
+
+function initExportButton() {
+    var exportmenu = [
+        { text: _("ISO2709 with items"), onclick: {fn: function(){export_submit("iso2709_995")}} },
+        { text: _("ISO2709 without items"), onclick: {fn: function(){export_submit("iso2709")}} },
+        { text: _("CSV"), onclick: {fn: function(){export_submit("csv")}} },
+    ];
+    new YAHOO.widget.Button({
+        type: "menu",
+        label: _("Export checkouts"),
+        name: "exportmenubutton",
+        menu: exportmenu,
+        container: "exportmenuc"
+    });
+}
+
+function export_submit(format) {
+    if ($("input:checkbox[name='biblionumbers'][checked]").length < 1){
+        alert(_("You must select a checkout to export"));
+        return;
+    }
+
+    $("input:checkbox[name='biblionumbers']").each( function(){
+        var input_item = $(this).siblings("input:checkbox");
+        if ( $(this).is(":checked") ) {
+            $(input_item).attr("checked", "checked");
+        } else {
+            $(input_item).attr("checked", "");
+        }
+    } );
+
+    if (format == 'iso2709_995') {
+        format = 'iso2709';
+        $("#dont_export_item").val(0);
+    } else if (format == 'iso2709') {
+        $("#dont_export_item").val(1);
+    } else {
+        [% UNLESS ( export_with_csv_profile ) %]
+            alert(_("You must define a csv profile for export (in tools>CSV export profiles) and fill the ExportWithCsvProfile system preference"));
+            return false;
+        [% END %]
+    }
+    document.issues.action="/cgi-bin/koha/tools/export.pl";
+    document.getElementById("export_format").value = format;
+    document.issues.submit();
+
+    /* Reset form action to its initial value */
+    document.issues.action="/cgi-bin/koha/reserve/renewscript.pl";
+
+};
 
 function validate1(date) {
     var today = new Date();
@@ -194,7 +262,7 @@ function validate1(date) {
 [% END %]
 
 [% IF ( borrowernumber ) %]
-[% INCLUDE 'circ-toolbar.inc' %]
+[% INCLUDE 'members-toolbar.inc' %]
 [% END %]
 
 <!--  INITIAL BLOC : PARAMETERS & BORROWER INFO -->
@@ -301,22 +369,35 @@ function validate1(date) {
 [% IF ( ITEM_LOST ) %]
     <li>This item has been lost with a status of "[% ITEM_LOST %]". Check out anyway?</li>
 [% END %]
+
+[% IF  HIGHHOLDS %]
+	<li>High demand item. Loan period shortened to [% HIGHHOLDS.duration %] days (due [% HIGHHOLDS.returndate %]). Check out anyway?</li>
+[% END %]
 </ul>
 
+[% IF HIGHHOLDS %]
+	<script language="JavaScript" type="text/javascript">
+	$(document).ready(function() {
+		$("input[name=duedatespec]:hidden").val('[% HIGHHOLDS.returndate %]');
+	});
+	</script>
+[% END %]
 <form method="post" action="/cgi-bin/koha/circ/circulation.pl" autocomplete="off">
 
 [% IF ( RESERVED ) %]
     <p>
-    <input type="checkbox" id="cancelreserve" name="cancelreserve" value="1" />
+    <input type="checkbox" id="cancelreserve" name="cancelreserve" value="cancel" />
     <label for="cancelreserve">Cancel hold</label>
     </p>
 [% END %]
 
 [% IF ( RESERVE_WAITING ) %]
-    <p>
-    <input type="checkbox" id="cancelreserve" name="cancelreserve" value="1" />
+<p>
     <label for="cancelreserve">Cancel hold</label>
-    </p>
+    <input type="radio" value="cancel" name="cancelreserve" id="cancelreserve" /><br />
+    <label for="revertreserve">Revert waiting status</label>
+    <input type="radio" value="revert" name="cancelreserve" id="revertreserve" checked="checked"/>
+</p>
 [% END %]
 
     <input type="hidden" name="barcode" value="[% barcode %]" />
@@ -325,7 +406,7 @@ function validate1(date) {
     [% IF ( DEBT ) %]<input type="hidden" name="debt_confirmed" value="1" />[% END %]
     [% IF ( INVALID_DATE ) %]
     <p>
-    <input type="text" size="13" id="duedatespec" name="duedatespec" value="[% duedatespec %]" />
+    <input type="text" size="13" id="duedatespec" name="duedatespec" readonly="readonly" value="[% duedatespec %]" />
     <label for="duedatespec">Due date</label>
     </p>
     [% ELSE %]
@@ -503,7 +584,7 @@ No patron matched <span class="ex">[% message %]</span>
 
     [% IF ( SpecifyDueDate ) %]<div class="date-select">
         <div class="hint">Specify due date [% INCLUDE 'date-format.inc' %]: </div>
-        [% IF ( duedatespec ) %]<input type="text" size="13" id="duedatespec" name="duedatespec" value="[% duedatespec %]" />[% ELSE %]<input type="text" size="13" id="duedatespec" name="duedatespec" value="" />
+        [% IF ( duedatespec ) %]<input type="text" size="13" id="duedatespec" name="duedatespec" value="[% duedatespec %]" readonly="readonly" />[% ELSE %]<input type="text" size="13" id="duedatespec" name="duedatespec" value="" readonly="readonly" />
 [% END %]
           <label for="stickyduedate"> Remember for session:</label>
 [% IF ( stickyduedate ) %]
@@ -683,7 +764,7 @@ No patron matched <span class="ex">[% message %]</span>
 <!-- SUMMARY : TODAY & PREVIOUS ISSUES -->
 <div id="checkouts">
 [% IF ( issuecount ) %]
-    <form action="/cgi-bin/koha/reserve/renewscript.pl" method="post" class="checkboxed">
+    <form name="issues" action="/cgi-bin/koha/reserve/renewscript.pl" method="post" class="checkboxed">
     <input type="hidden" value="circ" name="destination" />
     <input type="hidden" name="cardnumber" value="[% cardnumber %]" />
     <input type="hidden" name="borrowernumber" value="[% borrowernumber %]" />
@@ -700,6 +781,9 @@ No patron matched <span class="ex">[% message %]</span>
         <th scope="col">Price</th>
         <th scope="col">Renew <p class="column-tool"><a href="#" id="CheckAllitems">select all</a> | <a href="#" id="CheckNoitems">none</a></p></th>
         <th scope="col">Check in <p class="column-tool"><a href="#" id="CheckAllreturns">select all</a> | <a href="#" id="CheckNoreturns">none</a></p></th>
+        [% IF export_remove_fields OR export_with_csv_profile %]
+          <th scope="col">Export <p class="column-tool"><a href="#" id="CheckAllexports">select all</a> | <a href="#" id="CheckNoexports">none</a></p></th>
+        [% END %]
     </tr>
 [% IF ( todayissues ) %]</thead>
 [% INCLUDE 'checkouts-table-footer.inc' %]
@@ -756,9 +840,9 @@ No patron matched <span class="ex">[% message %]</span>
         [% END %]
         </td>
         [% END %]
-  [% IF ( todayissue.return_failed ) %]
+        [% IF ( todayissue.return_failed ) %]
             <td class="problem">Checkin failed</td>
-      [% ELSE %]
+        [% ELSE %]
             [% IF ( todayissue.renew_error_on_reserve ) %]
                <td><a href="/cgi-bin/koha/reserve/request.pl?biblionumber=[% todayissue.biblionumber %]">On hold</a>
                 <input type="checkbox" name="all_barcodes[]" value="[% todayissue.barcode %]" checked="checked" style="display: none;" />
@@ -768,13 +852,19 @@ No patron matched <span class="ex">[% message %]</span>
                 <input type="checkbox" name="all_barcodes[]" value="[% todayissue.barcode %]" checked="checked" style="display: none;" />
             </td>
             [% END %]
-      [% END %]
+        [% END %]
+        [% IF export_remove_fields OR export_with_csv_profile %]
+          <td style="text-align:center;">
+            <input type="checkbox" id="export_[% todayissue.biblionumber %]" name="biblionumbers" value="[% todayissue.biblionumber %]" />
+            <input type="checkbox" name="itemnumbers" value="[% todayissue.itemnumber %]" style="visibility:hidden;" />
+          </td>
+        [% END %]
     </tr>
     [% END %] <!-- /loop todayissues -->
     <!-- /if todayissues -->[% END %]
 [% IF ( previssues ) %]
-[% IF ( todayissues ) %]<tr><th colspan="10"><a name="previous" id="previous"></a>Previous checkouts</th></tr>[% ELSE %]
-<tr><th class="{sorter: false}" colspan="10"><a name="previous" id="previous"></a>Previous checkouts</th></tr></thead>
+[% IF ( todayissues ) %]<tr><th colspan="11"><a name="previous" id="previous"></a>Previous checkouts</th></tr>[% ELSE %]
+<tr><th class="{sorter: false}" colspan="11"><a name="previous" id="previous"></a>Previous checkouts</th></tr></thead>
 [% INCLUDE 'checkouts-table-footer.inc' %]
 	<tbody>
 [% END %]
@@ -832,7 +922,7 @@ No patron matched <span class="ex">[% message %]</span>
         </td>
         [% END %]
 		  [% IF ( previssue.return_failed ) %]
-            <td class="problem">Checkin failed</td>
+            <td class="problem">Check-in failed</td>
         [% ELSE %]
             [% IF ( previssue.renew_error_on_reserve ) %]
                <td><a href="/cgi-bin/koha/reserve/request.pl?biblionumber=[% previssue.biblionumber %]">On hold</a>
@@ -843,7 +933,13 @@ No patron matched <span class="ex">[% message %]</span>
                 <input type="checkbox" name="all_barcodes[]" value="[% previssue.barcode %]" checked="checked" style="display: none;" />
             </td>
             [% END %]
-      [% END %]
+        [% END %]
+        [% IF export_remove_fields OR export_with_csv_profile %]
+          <td style="text-align:center;">
+            <input type="checkbox" id="export_[% previssue.biblionumber %]" name="biblionumbers" value="[% previssue.biblionumber %]" />
+            <input type="checkbox" name="itemnumbers" value="[% previssue.itemnumber %]" style="visibility:hidden;" />
+          </td>
+        [% END %]
     </tr>
     <!-- /loop previssues -->[% END %]
 <!--/if previssues -->[% END %]
@@ -859,7 +955,16 @@ No patron matched <span class="ex">[% message %]</span>
         [% END %]
         <input type="submit" name="renew_checked" value="Renew or Return checked items" />
         <input type="submit" id="renew_all" name="renew_all" value="Renew all" />
-        </fieldset>
+        [% IF export_remove_fields OR export_with_csv_profile %]
+            <br/><br/>
+            Don't export fields : <input type="text" id="export_remove_fields" name="export_remove_fields" value="[% export_remove_fields %]" title="Use for iso2709 exports" />
+            <span id="exportmenuc">Export</span>
+            <input type="hidden" name="op" value="export" />
+            <input type="hidden" id="export_format" name="format" value="iso2709" />
+            <input type="hidden" id="dont_export_item" name="dont_export_item" value="0" />
+            <input type="hidden" id="record_type" name="record_type" value="bibs" />
+        [% END %]
+    </fieldset>
     [% END %]
     </form>
 [% ELSE %]
@@ -906,7 +1011,7 @@ No patron matched <span class="ex">[% message %]</span>
     [% END %] <!-- /loop relissues -->
     <!-- /if relissues -->[% END %]
 [% IF ( relprevissues ) %]
-<tr><th class="{sorter: false}" colspan="10"><a name="relprevious" id="relprevious"></a>Previous checkouts</th></tr>
+<tr><th class="{sorter: false}" colspan="11"><a name="relprevious" id="relprevious"></a>Previous checkouts</th></tr>
     [% FOREACH relprevissue IN relprevissues %]
     [% IF ( loop.odd ) %]
         <tr>

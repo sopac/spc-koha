@@ -3,8 +3,6 @@
 <meta name="generator" content="Koha [% Version %]" /> <!-- leave this for stats -->
 <link rel="shortcut icon" href="[% IF ( OpacFavicon ) %][% OpacFavicon %][% ELSE %][% themelang %]/includes/favicon.ico[% END %]" type="image/x-icon" />
 <link rel="stylesheet" type="text/css" href="[% themelang %]/lib/jquery/jquery-ui.css" />
-<link rel="stylesheet" type="text/css" href="[% yuipath %]/reset-fonts-grids.css" />
-<link rel="stylesheet" type="text/css" href="[% yuipath %]/skin.css" />
 [% SET opaclayoutstylesheet='opac.css' UNLESS opaclayoutstylesheet %]
 [% IF (opaclayoutstylesheet.match('^https?:|^\/')) %]
     <link rel="stylesheet" type="text/css" href="[% opaclayoutstylesheet %]" />
@@ -22,6 +20,7 @@
     <link rel="stylesheet" type="text/css" href="[% themelang %]/css/[% opac_css_override %]" />
 [% END %]
 <link rel="stylesheet" type="text/css" media="print" href="[% themelang %]/css/print.css" />
+[% IF ( OPACMobileUserCSS ) %]<style type="text/css" media="screen and (max-width:700px)">[% OPACMobileUserCSS %]</style>[% END %]
 [% IF ( OPACUserCSS ) %]<style type="text/css">[% OPACUserCSS %]</style>[% END %]
 <!-- yui js --> 
 <script type="text/javascript" src="[% yuipath %]/utilities/utilities.js"></script> 
@@ -79,7 +78,8 @@
     var MSG_TAGS_ADDED = _("Tags added: ");
     var MSG_TAGS_DELETED = _("Tags added: ");
     var MSG_TAGS_ERRORS = _("Errors: ");
-    var MSG_MULTI_ADD_TAG_FAILED = _("Unable to add one or more tags.");[% END %][% END %]
+    var MSG_MULTI_ADD_TAG_FAILED = _("Unable to add one or more tags.");
+    var MSG_NO_TAG_SPECIFIED = _("No tag was specified.");[% END %][% END %]
 	[% IF ( OPACAmazonCoverImages ) %]$(window).load(function() {
 		 	verify_images();
 		 });[% END %]

@@ -71,7 +71,7 @@ BEGIN {
 }
 
 my ($template,$borrowernumber,$cookie);
-
+my $lang = C4::Templates::getlanguage($cgi, 'opac');
 # decide which template to use
 my $template_name;
 my $template_type = 'basic';
@@ -178,7 +178,7 @@ $template->param(
 );
 
 # load the language limits (for search)
-my $languages_limit_loop = getAllLanguages();
+my $languages_limit_loop = getAllLanguages($lang);
 $template->param(search_languages_loop => $languages_limit_loop,);
 
 # load the Type stuff
@@ -312,7 +312,7 @@ $tag = $params->{tag} if $params->{tag};
 my $pasarParams = '';
 my $j = 0;
 for (keys %$params) {
-    my @pasarParam = split("\0", $params->{$_});
+    my @pasarParam = $cgi->param($_);
     for my $paramValue(@pasarParam) {
         $pasarParams .= '&amp;' if ($j > 0);
         $pasarParams .= $_ . '=' . $paramValue;
@@ -333,7 +333,7 @@ if (   C4::Context->preference('OPACdefaultSortField')
 }
 
 my @allowed_sortby = qw /acqdate_asc acqdate_dsc author_az author_za call_number_asc call_number_dsc popularity_asc popularity_dsc pubdate_asc pubdate_dsc relevance title_az title_za/; 
-@sort_by = split("\0",$params->{'sort_by'}) if $params->{'sort_by'};
+@sort_by = $cgi->param('sort_by');
 $sort_by[0] = $default_sort_by if !$sort_by[0] && defined($default_sort_by);
 foreach my $sort (@sort_by) {
     if ( $sort ~~ @allowed_sortby ) {
@@ -343,8 +343,7 @@ foreach my $sort (@sort_by) {
 $template->param('sort_by' => $sort_by[0]);
 
 # Use the servers defined, or just search our local catalog(default)
-my @servers;
-@servers = split("\0",$params->{'server'}) if $params->{'server'};
+my @servers = $cgi->param('server');
 unless (@servers) {
     #FIXME: this should be handled using Context.pm
     @servers = ("biblioserver");
@@ -353,21 +352,20 @@ unless (@servers) {
 
 # operators include boolean and proximity operators and are used
 # to evaluate multiple operands
-my @operators;
-@operators = split("\0",$params->{'op'}) if $params->{'op'};
+my @operators = $cgi->param('op');
 
 # indexes are query qualifiers, like 'title', 'author', etc. They
 # can be single or multiple parameters separated by comma: kw,right-Truncation 
-my @indexes;
-@indexes = split("\0",$params->{'idx'}) if $params->{'idx'};
+my @indexes = $cgi->param('idx');
 
 # if a simple index (only one)  display the index used in the top search box
 if ($indexes[0] && !$indexes[1]) {
     $template->param("ms_".$indexes[0] => 1);
 }
 # an operand can be a single term, a phrase, or a complete ccl query
-my @operands;
-@operands = split("\0",$params->{'q'}) if $params->{'q'};
+my @operands = $cgi->param('q');
+
+$template->{VARS}->{querystring} = join(' ', @operands);
 
 # if a simple search, display the value in the search box
 if ($operands[0] && !$operands[1]) {
@@ -375,8 +373,7 @@ if ($operands[0] && !$operands[1]) {
 }
 
 # limits are use to limit to results to a pre-defined category such as branch or language
-my @limits;
-@limits = split("\0",$params->{'limit'}) if $params->{'limit'};
+my @limits = $cgi->param('limit');
 
 if($params->{'multibranchlimit'}) {
     push @limits, '('.join( " or ", map { "branch: $_ " } @{ GetBranchesInCategory( $params->{'multibranchlimit'} ) } ).')';
@@ -421,7 +418,6 @@ my ($error,$query,$simple_query,$query_cgi,$query_desc,$limit,$limit_cgi,$limit_
 my @results;
 
 ## I. BUILD THE QUERY
-my $lang = C4::Templates::getlanguage($cgi, 'opac');
 ( $error,$query,$simple_query,$query_cgi,$query_desc,$limit,$limit_cgi,$limit_desc,$stopwords_removed,$query_type) = buildQuery(\@operators,\@operands,\@indexes,\@limits,\@sort_by, 0, $lang);
 
 sub _input_cgi_parse {
@@ -497,7 +493,7 @@ elsif (C4::Context->preference('NoZebra')) {
     $pasarParams .= '&amp;simple_query=' . $simple_query;
     $pasarParams .= '&amp;query_type=' . $query_type if ($query_type);
     eval {
-        ($error, $results_hashref, $facets) = getRecords($query,$simple_query,\@sort_by,\@servers,$results_per_page,$offset,$expanded_facet,$branches,$itemtypes,$query_type,$scan);
+        ($error, $results_hashref, $facets) = getRecords($query,$simple_query,\@sort_by,\@servers,$results_per_page,$offset,$expanded_facet,$branches,$itemtypes,$query_type,$scan,1);
     };
 }
 # This sorts the facets into alphabetical order
@@ -699,7 +695,7 @@ for (my $i=0;$i<@servers;$i++) {
             $hide = ($hide =~ m/\S/) if $hide; # Just in case it has some spaces/new lines
             $template->param(
                 SEARCH_RESULTS => \@newresults,
-                OPACItemsResultsDisplay => (C4::Context->preference("OPACItemsResultsDisplay") eq "itemdetails"?1:0),
+                OPACItemsResultsDisplay => (C4::Context->preference("OPACItemsResultsDisplay")),
                 suppress_result_number => $hide,
                             );
 	    if (C4::Context->preference("OPACLocalCoverImages")){
@@ -765,6 +761,16 @@ for (my $i=0;$i<@servers;$i++) {
         }
         # no hits
         else {
+            my $nohits = C4::Context->preference('OPACNoResultsFound');
+            if ($nohits and $nohits=~/{QUERY_KW}/){
+                # extracting keywords in case of relaunching search
+                (my $query_kw=$query_desc)=~s/ and|or / /g;
+                $query_kw = Encode::decode_utf8($query_kw);
+                my @query_kw=($query_kw=~ /([-\w]+\b)(?:[^,:]|$)/g);
+                $query_kw=join('+',@query_kw);
+                $nohits=~s/{QUERY_KW}/$query_kw/g;
+                $template->param('OPACNoResultsFound' =>$nohits);
+            }
             $template->param(
                 searchdesc => 1,
                 query_desc => $query_desc,
@@ -825,6 +831,8 @@ my $content_type = ($format eq 'rss' or $format eq 'atom') ? $format : 'html';
 if (C4::Context->preference('GoogleIndicTransliteration')) {
         $template->param('GoogleIndicTransliteration' => 1);
 }
+
+$template->{VARS}->{DidYouMean} = C4::Context->preference('OPACdidyoumean') =~ m/enable/;
 
     $template->param( borrowernumber    => $borrowernumber);
 output_with_http_headers $cgi, $cookie, $template->output, $content_type;

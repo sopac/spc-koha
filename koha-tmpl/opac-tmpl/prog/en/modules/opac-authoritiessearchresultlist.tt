@@ -1,3 +1,4 @@
+[% PROCESS 'opac-authorities.inc' %]
 [% PROCESS 'authorities-search-results.inc' %]
 [% INCLUDE 'doc-head-open.inc' %][% IF ( LibraryNameTitle ) %][% LibraryNameTitle %][% ELSE %]Koha online[% END %] catalog &rsaquo; [% IF ( total ) %]Authority search result[% ELSE %]No results found[% END %]
 [% INCLUDE 'doc-head-close.inc' %]
@@ -57,7 +58,7 @@
             [% ELSE %]
                 <tr>
             [% END %]
-                    <td>[% PROCESS authresult summary=resul.summary %]</td>
+                    <td>[% PROCESS authresult summary=resul.summary link="/cgi-bin/koha/opac-authorities-home.pl?op=do_search&type=opac&operatorc=contains&marclistc=mainentry&and_orc=and&orderby=HeadingAsc&valuec=" %]</td>
                     <td>[% resul.authtype %]</td>
 					[% UNLESS ( resul.isEDITORS ) %]
 						<td>

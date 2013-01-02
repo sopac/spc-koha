@@ -18,7 +18,7 @@ package C4::Auth;
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use strict;
-#use warnings; FIXME - Bug 2505
+use warnings;
 use Digest::MD5 qw(md5_base64);
 use Storable qw(thaw freeze);
 use URI::Escape;
@@ -129,6 +129,7 @@ my $SEARCH_HISTORY_INSERT_SQL =<<EOQ;
 INSERT INTO search_history(userid, sessionid, query_desc, query_cgi, total, time            )
 VALUES                    (     ?,         ?,          ?,         ?,          ?, FROM_UNIXTIME(?))
 EOQ
+
 sub get_template_and_user {
     my $in       = shift;
     my $template =
@@ -380,7 +381,7 @@ sub get_template_and_user {
         my $opac_search_limit = $ENV{'OPAC_SEARCH_LIMIT'};
         my $opac_limit_override = $ENV{'OPAC_LIMIT_OVERRIDE'};
         my $opac_name = '';
-        if (($opac_search_limit =~ /branch:(\w+)/ && $opac_limit_override) || $in->{'query'}->param('limit') =~ /branch:(\w+)/){
+        if (($opac_search_limit && $opac_search_limit =~ /branch:(\w+)/ && $opac_limit_override) || ($in->{'query'}->param('limit') && $in->{'query'}->param('limit') =~ /branch:(\w+)/)){
             $opac_name = $1;   # opac_search_limit is a branch, so we use it.
         } elsif (C4::Context->preference("SearchMyLibraryFirst") && C4::Context->userenv && C4::Context->userenv->{'branch'}) {
             $opac_name = C4::Context->userenv->{'branch'};
@@ -402,6 +403,7 @@ sub get_template_and_user {
             OpacShowRecentComments    => C4::Context->preference("OpacShowRecentComments"),
             OPACURLOpenInNewWindow    => "" . C4::Context->preference("OPACURLOpenInNewWindow"),
             OPACUserCSS               => "". C4::Context->preference("OPACUserCSS"),
+            OPACMobileUserCSS         => "". C4::Context->preference("OPACMobileUserCSS"),
             OPACViewOthersSuggestions => "" . C4::Context->preference("OPACViewOthersSuggestions"),
             OpacAuthorities           => C4::Context->preference("OpacAuthorities"),
             OPACBaseURL               => ($in->{'query'}->https() ? "https://" : "http://") . $ENV{'SERVER_NAME'} .
@@ -413,6 +415,9 @@ sub get_template_and_user {
             OpacCloud                 => C4::Context->preference("OpacCloud"),
             OpacKohaUrl               => C4::Context->preference("OpacKohaUrl"),
             OpacMainUserBlock         => "" . C4::Context->preference("OpacMainUserBlock"),
+            OpacMainUserBlockMobile   => "" . C4::Context->preference("OpacMainUserBlockMobile"),
+            OpacShowFiltersPulldownMobile => C4::Context->preference("OpacShowFiltersPulldownMobile"),
+            OpacShowLibrariesPulldownMobile => C4::Context->preference("OpacShowLibrariesPulldownMobile"),
             OpacNav                   => "" . C4::Context->preference("OpacNav"),
             OpacNavRight              => "" . C4::Context->preference("OpacNavRight"),
             OpacNavBottom             => "" . C4::Context->preference("OpacNavBottom"),
@@ -457,6 +462,8 @@ sub get_template_and_user {
             SyndeticsSeries              => C4::Context->preference("SyndeticsSeries"),
             SyndeticsCoverImageSize      => C4::Context->preference("SyndeticsCoverImageSize"),
             OPACLocalCoverImages         => C4::Context->preference("OPACLocalCoverImages"),
+            PatronSelfRegistration       => C4::Context->preference("PatronSelfRegistration"),
+            PatronSelfRegistrationDefaultCategory => C4::Context->preference("PatronSelfRegistrationDefaultCategory"),
         );
 
         $template->param(OpacPublic => '1') if ($user || C4::Context->preference("OpacPublic"));
@@ -542,7 +549,7 @@ has authenticated.
 
 =cut
 
-sub _version_check ($$) {
+sub _version_check {
     my $type = shift;
     my $query = shift;
     my $version;
@@ -552,6 +559,7 @@ sub _version_check ($$) {
 	if (C4::Context->preference('OpacMaintenance') && $type eq 'opac') {
         warn "OPAC Install required, redirecting to maintenance";
         print $query->redirect("/cgi-bin/koha/maintenance.pl");
+        safe_exit;
     }
     unless ( $version = C4::Context->preference('Version') ) {    # assignment, not comparison
         if ( $type ne 'opac' ) {
@@ -587,9 +595,18 @@ sub _version_check ($$) {
 
 sub _session_log {
     (@_) or return 0;
-    open L, ">>/tmp/sessionlog" or warn "ERROR: Cannot append to /tmp/sessionlog";
-    printf L join("\n",@_);
-    close L;
+    open my $fh, '>>', "/tmp/sessionlog" or warn "ERROR: Cannot append to /tmp/sessionlog";
+    printf $fh join("\n",@_);
+    close $fh;
+}
+
+sub _timeout_syspref {
+    my $timeout = C4::Context->preference('timeout') || 600;
+    # value in days, convert in seconds
+    if ($timeout =~ /(\d+)[dD]/) {
+        $timeout = $1 * 86400;
+    };
+    return $timeout;
 }
 
 sub checkauth {
@@ -602,12 +619,7 @@ sub checkauth {
     $type = 'opac' unless $type;
 
     my $dbh     = C4::Context->dbh;
-    my $timeout = C4::Context->preference('timeout');
-    # days
-    if ($timeout =~ /(\d+)[dD]/) {
-        $timeout = $1 * 86400;
-    };
-    $timeout = 600 unless $timeout;
+    my $timeout = _timeout_syspref();
 
     _version_check($type,$query);
     # state variables
@@ -648,7 +660,7 @@ sub checkauth {
             $ip       = $session->param('ip');
             $lasttime = $session->param('lasttime');
             $userid   = $session->param('id');
-			$sessiontype = $session->param('sessiontype');
+            $sessiontype = $session->param('sessiontype') || '';
         }
         if ( ( ($query->param('koha_login_context')) && ($query->param('userid') ne $session->param('id')) )
           || ( $cas && $query->param('ticket') ) ) {
@@ -697,7 +709,7 @@ sub checkauth {
         else {
             $cookie = $query->cookie( CGISESSID => $session->id );
             $session->param('lasttime',time());
-            unless ( $sessiontype eq 'anon' ) { #if this is an anonymous session, we want to update the session, but not behave as if they are logged in...
+            unless ( $sessiontype && $sessiontype eq 'anon' ) { #if this is an anonymous session, we want to update the session, but not behave as if they are logged in...
                 $flags = haspermission($userid, $flagsrequired);
                 if ($flags) {
                     $loggedin = 1;
@@ -922,17 +934,11 @@ sub checkauth {
         my $value = $query->param($name);
         push @inputs, { name => $name, value => $value };
     }
-    # get the branchloop, which we need for authentication
-    my $branches = GetBranches();
-    my @branch_loop;
-    for my $branch_hash (sort keys %$branches) {
-		push @branch_loop, {branchcode => "$branch_hash", branchname => $branches->{$branch_hash}->{'branchname'}, };
-    }
 
     my $template_name = ( $type eq 'opac' ) ? 'opac-auth.tmpl' : 'auth.tmpl';
     my $template = C4::Templates::gettemplate($template_name, $type, $query );
     $template->param(
-        branchloop           => \@branch_loop,
+        branchloop           => GetBranchesLoop(),
         opaccolorstylesheet  => C4::Context->preference("opaccolorstylesheet"),
         opaclayoutstylesheet => C4::Context->preference("opaclayoutstylesheet"),
         login                => 1,
@@ -957,17 +963,19 @@ sub checkauth {
         OpacAuthorities      => C4::Context->preference("OpacAuthorities"),
         OpacBrowser          => C4::Context->preference("OpacBrowser"),
         opacheader           => C4::Context->preference("opacheader"),
-        TagsEnabled                  => C4::Context->preference("TagsEnabled"),
+        TagsEnabled          => C4::Context->preference("TagsEnabled"),
         OPACUserCSS           => C4::Context->preference("OPACUserCSS"),
-        intranetcolorstylesheet =>
-								C4::Context->preference("intranetcolorstylesheet"),
+        intranetcolorstylesheet => C4::Context->preference("intranetcolorstylesheet"),
         intranetstylesheet => C4::Context->preference("intranetstylesheet"),
         intranetbookbag    => C4::Context->preference("intranetbookbag"),
         IntranetNav        => C4::Context->preference("IntranetNav"),
+        IntranetFavicon    => C4::Context->preference("IntranetFavicon"),
         intranetuserjs     => C4::Context->preference("intranetuserjs"),
         IndependantBranches=> C4::Context->preference("IndependantBranches"),
         AutoLocation       => C4::Context->preference("AutoLocation"),
-		wrongip            => $info{'wrongip'},
+        wrongip            => $info{'wrongip'},
+        PatronSelfRegistration => C4::Context->preference("PatronSelfRegistration"),
+        PatronSelfRegistrationDefaultCategory => C4::Context->preference("PatronSelfRegistrationDefaultCategory"),
     );
 
     $template->param( OpacPublic => C4::Context->preference("OpacPublic"));
@@ -1053,8 +1061,7 @@ sub check_api_auth {
     my $flagsrequired = shift;
 
     my $dbh     = C4::Context->dbh;
-    my $timeout = C4::Context->preference('timeout');
-    $timeout = 600 unless $timeout;
+    my $timeout = _timeout_syspref();
 
     unless (C4::Context->preference('Version')) {
         # database has not been installed yet
@@ -1286,8 +1293,7 @@ sub check_cookie_auth {
     my $flagsrequired = shift;
 
     my $dbh     = C4::Context->dbh;
-    my $timeout = C4::Context->preference('timeout');
-    $timeout = 600 unless $timeout;
+    my $timeout = _timeout_syspref();
 
     unless (C4::Context->preference('Version')) {
         # database has not been installed yet
@@ -1487,7 +1493,13 @@ sub getuserflags {
     my $userid  = shift;
     my $dbh     = @_ ? shift : C4::Context->dbh;
     my $userflags;
-    $flags = 0 unless $flags;
+    {
+        # I don't want to do this, but if someone logs in as the database
+        # user, it would be preferable not to spam them to death with
+        # numeric warnings. So, we make $flags numeric.
+        no warnings 'numeric';
+        $flags += 0;
+    }
     my $sth = $dbh->prepare("SELECT bit, flag, defaulton FROM userflags");
     $sth->execute;
 

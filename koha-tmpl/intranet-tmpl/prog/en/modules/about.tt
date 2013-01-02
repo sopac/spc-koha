@@ -98,6 +98,11 @@
         </div>
 
         <div id="sysinfo">
+        [% IF (warnIsRootUser) %]
+            <h2>Warning regarding current user</h2>
+            <p>You are logged in as the database administrative user. This is not recommended because some parts of Koha will not function as expected when using this account.</p>
+            <p>Please log in instead with a regular staff account. To create a staff account, create a library, a patron category 'Staff' and add a new patron. Then give this patron permissions from 'More' in the toolbar.</p>
+        [% END %]
             <h2>Warnings regarding the system configuration</h2>
         [% IF ( (prefNoZebra) || (warnPrefBiblioAddsAuthorities) || warnPrefEasyAnalyticalRecords ) %]
         <table>
@@ -133,28 +138,41 @@
                 <li><a href="http://www.ashs.school.nz/">Albany Senior High School</a>, Auckland, New Zealand (OPAC 'star-ratings' sponsorship)</li>
             </ul>
 
-            <h2>Koha release team</h2>
+            <h2>Release team for Koha 3.12</h2>
             <ul>
-               <li>Colin Campbell (Koha 3.4 QA Manager)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544614260">Galen Charlton</a> (Koha 3.2 Release Manager)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609030">Chris Cormack</a> (Koha 1.x, 3.4, 3.6 Release Manager, Koha 3.2 Translation Manager)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6620692210484">Frédéric Demians</a>(Koha 3.4, 3.6 Translation Manager)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544646984">Nicole C. Engard</a> (Koha 3.x Documentation Manager)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609053">Joshua Ferraro</a> (Koha 3.0 Release Manager &amp; Translation Manager)</li>
+               <li>D Ruth Bavousett (Translation Manager)</li>
+               <li>Jared Camins-Esakov (Release Manager)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609030">Chris Cormack</a> (3.8, 3.10 Release Maintainer)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544646984">Nicole C. Engard</a> (Documentation Manager)</li>
+               <li>Katrin Fischer (QA Manager)</li>
+               <li>Liz Rea (3.6 Release Maintainer)</li>
+            </ul>
+
+            <h2>Former Koha release team members</h2>
+            <ul>
+               <li>Jared Camins-Esakov (3.6 Release Maintainer)</li>
+               <li>Colin Campbell (3.4 QA Manager)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544614260">Galen Charlton</a> (3.2 Release Manager)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609030">Chris Cormack</a> (1.x, 3.4, 3.6 Release Manager, 3.2 Translation Manager, 3.8 Release Maintainer)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6620692210484">Frédéric Demians</a> (3.4, 3.6, 3.8, 3.10 Translation Manager)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544646984">Nicole C. Engard</a> (3.x Documentation Manager)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609053">Joshua Ferraro</a> (3.0 Release Manager &amp; Translation Manager)</li>
                <li>Rachel Hamilton-Williams (Kaitiaki from 2004 to present)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544614275">Henri-Damien Laurent</a> (Koha 3.0 Release Maintainer)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609147">Owen Leonard</a> (Koha 3.x Interface Design)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544615991">Chris Nighswonger</a> (Koha 3.2, 3.4 Release Maintainer, Koha 3.6 Release Maintainer)</li>
-               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544612249">Paul Poulain</a> (Koha 2.0 Release Manager, Koha 2.2 Release Manager/Maintainer, Koha 3.8 Release Manager, Koha 3.10 Release Manager)</li>
-               <li><a href="http://www.ohloh.net/p/koha/contributors/6620692116417">MJ Ray</a> (Koha 2.0 Release Maintainer)</li>
-                <li>Ian Walls Koha 3.6 QA Manager, Koha 3.8 QA Manager, Koha 3.10 QA Manager</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544614275">Henri-Damien Laurent</a> (3.0 Release Maintainer)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609147">Owen Leonard</a> (3.x Interface Design)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544615991">Chris Nighswonger</a> (3.2, 3.4, 3.6 Release Maintainer)</li>
+               <li><a href="https://www.ohloh.net/p/koha/contributors/6618544612249">Paul Poulain</a> (2.0 Release Manager, 2.2 Release Manager/Maintainer, 3.8, 3.10 Release Manager)</li>
+               <li><a href="http://www.ohloh.net/p/koha/contributors/6620692116417">MJ Ray</a> (2.0 Release Maintainer)</li>
+                <li>Ian Walls (3.6, 3.8, 3.10 QA Manager)</li>
                 </ul>
+
             <h2>Koha development team</h2>
             <ul>
                 <li>Md. Aftabuddin</li>
                 <li>Jon Aker</li>
                 <li>Edward Allen</li>
                 <li>Francisco M. Marzoa Alonso</li>
+                <li>Joseph Alway</li>
                 <li>Cindy Murdock Ames</li>
                 <li>Richard Anderson</li>
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6620692181851">Nahuel Angelinetti</a></li>
@@ -175,6 +193,7 @@
                 <li>Gaetan Boisson</li>
                 <li>Danny Bouman</li>
                 <li>Stan Brinkerhoff</li>
+                <li>Ivan Brown</li>
                 <li>Roger Buck</li>
                 <li>Steven Callender</li>
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6620692376789">Jared Camins-Esakov</a></li>
@@ -213,6 +232,7 @@
                 <li>Shaun Evans</li>
                 <li>Pat Eyler (Kaitiaki from 2002 to 2004)</li>
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6618544609865">Antoine Farnault</a></li>
+                <li>Vitor Fernandes</li>
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6618544670742">Katrin Fischer</a></li>
                 <li>Clay Fouts</li>
                 <li>Claudia Forsman</li>
@@ -263,14 +283,16 @@
                 <li>Brig C. McCoy</li>
                 <li>Dorian Meid (German translation)</li>
                 <li>Meenakshi. R</li>
+                <li>Melia Meggs</li>
                 <li>Matthias Meusburger</li>
                 <li>Sophie Meynieux</li>
                 <li>Alan Millar</li>
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6618544607803">Andrew Moore</a></li>
                 <li>Sharon Moreland</li>
                 <li>Nicolas Morin</li>
-                 <li>Mike Mylonas</li>
-                 <li>Joy Nelson</li>
+                <li>Mike Mylonas</li>
+                <li>Nadia Nicolaides</li>
+                <li>Joy Nelson</li>
                 <li><a href="https://www.ohloh.net/accounts/cnighswonger">Chris Nighswonger</a></li>
                 <li>Albert Oller</li>
                 <li>Eric Olsen</li>
@@ -279,7 +301,7 @@
                 <li>Maxime Pelletier</li>
                 <li>Polytechnic University</li>
                 <li>Shari Perkins</li>
-                <li>Meenakshi.R</li>
+                <li>Romina Racca</li>
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6620692116417">MJ Ray</a></li>
                 <li>Liz Rea</li>
                 <li>Thatcher Rea</li>
@@ -289,6 +311,7 @@
                 <li>Waylon Robertson</li>
                 <li>Marcel de Rooy</li>
                 <li>Salvador Zaragoza Rubio</li>
+                <li>Mathieu Saby</li>
                 <li>Brice Sanchez</li>
                 <li>Sam Sanders</li>
                 <li>Adrien Saurat</li>
@@ -314,6 +337,7 @@
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6620692101577">Steve Tonnesen (early MARC work, Virtual Bookshelves concept, KohaCD)</a></li>
                 <li>Bruno Toumi</li>
                 <li>Andrei V. Toutoukine</li>
+                <li>Kathryn Tyree</li>
                 <li>Darrell Ulm</li>
                 <li>Universidad ORT Uruguay (Ernesto Silva, Andres Tarallo)</li>
                 <li>Marc Veron</li>
@@ -329,6 +353,7 @@
                 <li>Ron Wickersham</li>
                 <li>Brett Wilkins</li>
                 <li><a href="https://www.ohloh.net/p/koha/contributors/6620692127299">Olwen Williams (Database design and data extraction for Koha 1.0)</a></li>
+                <li>Robert Williams</li>
                 <li>James Winter</li>
                 <li>Lars Wirzenius</li>
             </ul>
@@ -385,6 +410,13 @@
                   by the Bridge Consortium of Carleton College and St. Olaf College.</li>
               </ul>
 
+            <h2>The Sudoc Icon Set</h2>
+              <ul>
+                <li><a href="http://www.abes.fr/Sudoc/Boite-a-outils-Sudoc-public/Les-icones-Sudoc">Les icones Sudoc</a></li>
+                <li>The Sudoc Icon Set is licensed under a
+                  <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/3.0/">Creative Commons Attribution-NonCommercial-ShareAlike 3.0 License</a>
+                  by Agence Bibliographique de l'Enseignement Supérieur</li>
+              </ul>
             <h2>The Noun Project icons</h2>
                 <ul>
                     <li>All images come from <a href="http://thenounproject.com/">The Noun Project</a> collection</li>
@@ -430,7 +462,7 @@
 <li>Fran&ccedil;ais (French) <a href="http://www.koha-fr.org/category/tags/association">Kohala</a>, Pascale Nalon (ENSMP), and many more </li>
 <li>Galego (Galician) Ignacio Javier</li>
 <li>Deutsch (German) Friedrich zur Hellen, Robert Hillig, Katrin Fischer, Beda Szukics, Mirko Tietgen and Marc Véron</li>
-<li>&#949;&#955;&#955;&#951;&#957;&#953;&#954;&#940; (Greek, Modern [1453- ])Georgia Katsarou, Panoraia Gaitanou</li>
+<li>&#949;&#955;&#955;&#951;&#957;&#953;&#954;&#940; (Greek, Modern [1453- ]) Georgia Katsarou, Panoraia Gaitanou and Kiriaki Roditi</li>
 <li>&#1506;&#1489;&#1512;&#1497;&#1514; (Hebrew)</li>
 <li>&#2361;&#2367;&#2344;&#2381;&#2342;&#2368; (Hindi)</li>
 <li>Magyar (Hungarian)Agnes Imecs</li>

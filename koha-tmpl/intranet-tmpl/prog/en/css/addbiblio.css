@@ -50,8 +50,10 @@ div.tag {
 }
 
 div.subfield_line {
-	padding-bottom : .3em;
-    clear: both;
+    padding-bottom: .3em;
+    float: left;
+    clear: left;
+    width: 100%;
 }
 
 div.subfield_line label {
@@ -61,6 +63,10 @@ div.subfield_line label {
     width: 16em;
     text-align: left;
     clear:left;
+}
+
+.subfieldcode img {
+    cursor: pointer;
 }
 
 .tag_title {
@@ -149,4 +155,12 @@ a.tagnum {
 .floating {
 	-webkit-box-shadow: 0px 3px 2px 0px rgba(0, 0, 0, .5);
 	box-shadow: 0px 3px 2px 0px rgba(0, 0, 0, .5);
+}
+
+tr.active td {
+    background-color: #FFFFCC;
+}
+
+tr.active.highlight td {
+    background-color: #FEF4B4;
 }
