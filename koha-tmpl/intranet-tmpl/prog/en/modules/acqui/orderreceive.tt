@@ -4,6 +4,25 @@
 [% INCLUDE 'additem.js.inc' %]
 <script type="text/javascript" src="[% themelang %]/js/additem.js"> </script>
 <script type="text/javascript">
+
+var nav = window.Event ? true : false;
+if (nav) {
+	window.captureEvents(Event.KEYDOWN);
+	window.onkeydown = NetscapeEventHandler_KeyDown;
+} else {
+	document.onkeydown = IEEventHandler_KeyDown;
+}
+
+function NetscapeEventHandler_KeyDown(e) {
+	if (e.which == 13 && e.target.type != 'textarea' && e.target.type != 'submit') { return false; }
+	return true;
+}
+
+function IEEventHandler_KeyDown() {
+	if (event.keyCode == 13 && event.srcElement.type != 'textarea' && event.srcElement.type != 'submit')
+		return false;
+	return true;
+}
 //<![CDATA[
     function Check(form) {
         [% IF (AcqCreateItemReceiving) %]
@@ -18,16 +37,18 @@
                 }
             });
 
-            var alertString;
-            if (total_errors==0) {
-                return true;
-            } else {
-                alertString  = _("Form not submitted because of the following problem(s)");
+            if (total_errors != 0) {
+                var alertString = _("Form not submitted because of the following problem(s)");
                 alertString += "\n------------------------------------------------------------------------------------\n";
                 alertString += "\n- "+ total_errors+_(" mandatory fields empty (highlighted)");
                 alert(alertString);
                 return false;
             }
+
+            if(check_additem('[% UniqueItemFields %]') == false){
+                alert(_('Duplicate values detected. Please correct the errors and resubmit.') );
+                return false;
+            };
 
             // Remove last itemblock if it is not in items_list
             var lastitemblock = $("#outeritemblock > div:last");
@@ -41,14 +62,6 @@
             if(tobedeleted){
                 $(lastitemblock).remove();
             }
-
-            if(check_additem('[% UniqueItemFields %]') == false){
-                alert(_('Duplicate values detected. Please correct the errors and resubmit.') );
-                if(tobedeleted) {
-                    $(lastitemblock).appendTo("#outeritemblock");
-                }
-                return false;
-            };
         [% END %]
 
         return true;
@@ -322,7 +335,6 @@
 
 </div>
 </div><div class="yui-g"><fieldset class="action">
-        <input type="submit" onclick="return false;" style="display: none;" id="phony_submit" value="phony_submit" name="phony_submit" />
         <input type="submit"  value="Save" class="button" accesskey="w" />
         <a class="cancel" href="/cgi-bin/koha/acqui/parcel.pl?invoiceid=[% invoiceid %]">Cancel</a>
 </fieldset></div>    </form>
